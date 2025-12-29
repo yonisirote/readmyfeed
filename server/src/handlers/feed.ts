@@ -9,17 +9,18 @@ function clampInt(value: unknown, fallback: number, min: number, max: number): n
 }
 
 export const getFeed: RequestHandler = async (req, res) => {
+  const countRaw = typeof req.query.count === 'string' ? Number(req.query.count) : undefined;
+  const count = clampInt(countRaw, FOLLOWED_FEED_DEFAULT_COUNT, 1, FOLLOWED_FEED_MAX_COUNT);
+
+  const cursor = typeof req.query.cursor === 'string' ? req.query.cursor : undefined;
+
   try {
-    const countRaw = typeof req.query.count === 'string' ? Number(req.query.count) : undefined;
-    const count = clampInt(countRaw, FOLLOWED_FEED_DEFAULT_COUNT, 1, FOLLOWED_FEED_MAX_COUNT);
-
-    const cursor = typeof req.query.cursor === 'string' ? req.query.cursor : undefined;
-
     const data = await getFollowedFeed({ count, cursor });
 
     res.json({
       tweets: data.tweets,
       nextCursor: data.nextCursor,
+      hasMore: data.hasMore,
     });
   } catch (error) {
     res.status(500).json({

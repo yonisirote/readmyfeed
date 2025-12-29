@@ -5,8 +5,9 @@ async function main() {
 
   console.log(`fetched ${result.tweets.length} tweets`);
   for (const tweet of result.tweets) {
-    const user = tweet.user?.userName ? `@${tweet.user.userName}` : '<unknown>';
-    console.log(`- ${user}: ${tweet.text.replace(/\s+/g, ' ').trim().slice(0, 140)}`);
+    const user = tweet.user?.userName ? `${tweet.user.userName}` : '<unknown>';
+    const rt = tweet.retweetOf?.userName ? ` retweeted ${tweet.retweetOf.userName}` : '';
+    console.log(`- ${user}${rt}: ${tweet.text.replace(/\s+/g, ' ').trim().slice(0, 140)}`);
     if (tweet.url) console.log(`  ${tweet.url}`);
   }
 

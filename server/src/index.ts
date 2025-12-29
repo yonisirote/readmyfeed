@@ -15,6 +15,12 @@ app.get('/healthz', (_req, res) => {
 
 app.use('/api/feed', feedRouter);
 
+app.get('/tts', (_req, res) => {
+  res.sendFile('tts.html', {
+    root: new URL('./pages', import.meta.url).pathname,
+  });
+});
+
 app.listen(serverConfig.port, () => {
   console.log(`server listening on :${serverConfig.port}`);
 });

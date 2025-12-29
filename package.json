@@ -6,6 +6,7 @@
   ],
   "scripts": {
     "dev": "npm run dev -w server",
-    "smoke": "npm run smoke -w server"
+    "smoke": "npm run smoke -w server",
+    "smoke:pagination:mock": "npm run smoke:pagination:mock -w server"
   }
 }

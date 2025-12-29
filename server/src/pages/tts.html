@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ReadMyFeed - TTS Test</title>
+    <style>
+      body {
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+        margin: 24px;
+        max-width: 800px;
+      }
+      button {
+        margin-right: 8px;
+        padding: 8px 12px;
+      }
+      pre {
+        background: #f6f8fa;
+        padding: 12px;
+        border-radius: 6px;
+        white-space: pre-wrap;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>ReadMyFeed - Chrome TTS Test</h1>
+
+    <p>Start reads tweets continuously. Stop cancels speech.</p>
+
+    <div>
+      <button id="start">Start</button>
+      <button id="stop">Stop</button>
+    </div>
+
+    <h2>Status</h2>
+    <pre id="status">idle</pre>
+
+    <script>
+      const statusEl = document.getElementById('status');
+      const startBtn = document.getElementById('start');
+      const stopBtn = document.getElementById('stop');
+
+      let runId = 0;
+      let isRunning = false;
+
+      let tweets = [];
+      let index = 0;
+      let nextCursor;
+      let hasMore = true;
+
+      let selectedVoice = null;
+
+      function setStatus(msg) {
+        statusEl.textContent = msg;
+      }
+
+      function sanitizeForTts(value) {
+        return String(value ?? '')
+          .replace(/[\u0000-\u001F\u007F]/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim()
+          .slice(0, 2000);
+      }
+
+      function buildSpokenText(tweet) {
+        const user = tweet?.user?.userName || 'unknown';
+        const rtUser = tweet?.retweetOf?.userName;
+        const rt = rtUser ? ` retweeted ${rtUser}.` : '.';
+        const text = sanitizeForTts(tweet?.text || '');
+
+        return sanitizeForTts(`${user}${rt} ${text}`);
+      }
+
+      function primeVoices() {
+        try {
+          window.speechSynthesis.getVoices();
+        } catch {
+          // ignore
+        }
+      }
+
+      function getVoicesSafe() {
+        try {
+          const voices = window.speechSynthesis.getVoices();
+          return Array.isArray(voices) ? voices : [];
+        } catch {
+          return [];
+        }
+      }
+
+      async function ensureVoicesLoaded(timeoutMs = 1500) {
+        const existing = getVoicesSafe();
+        if (existing.length > 0) return existing;
+
+        return await new Promise((resolve) => {
+          let settled = false;
+
+          const settle = () => {
+            if (settled) return;
+            settled = true;
+            window.speechSynthesis.removeEventListener('voiceschanged', settle);
+            resolve(getVoicesSafe());
+          };
+
+          window.speechSynthesis.addEventListener('voiceschanged', settle);
+          setTimeout(settle, timeoutMs);
+          primeVoices();
+        });
+      }
+
+      function pickVoice(voices) {
+        if (!Array.isArray(voices) || voices.length === 0) return null;
+        const english = voices.find((v) => typeof v.lang === 'string' && v.lang.toLowerCase().startsWith('en'));
+        return english || voices[0];
+      }
+
+      async function fetchNextPage() {
+        const url = new URL('/api/feed', window.location.origin);
+        url.searchParams.set('count', '35');
+        if (nextCursor) url.searchParams.set('cursor', nextCursor);
+
+        const res = await fetch(url.toString());
+        if (!res.ok) throw new Error(`feed request failed: ${res.status}`);
+
+        const data = await res.json();
+        tweets = tweets.concat(data.tweets || []);
+        nextCursor = data.nextCursor;
+        hasMore = Boolean(data.hasMore);
+      }
+
+      function stopReading(msg = 'stopped') {
+        isRunning = false;
+        runId += 1;
+        window.speechSynthesis.cancel();
+        setStatus(msg);
+      }
+
+      function speakOne(localRunId) {
+        if (!isRunning || localRunId !== runId) return;
+
+        // Avoid calling speak while already speaking/pending.
+        if (window.speechSynthesis.speaking || window.speechSynthesis.pending) {
+          return;
+        }
+
+        const tweet = tweets[index];
+        if (!tweet) {
+          stopReading('done (no tweet at current index)');
+          return;
+        }
+
+        const spoken = buildSpokenText(tweet);
+        if (!spoken) {
+          index += 1;
+          speakOne(localRunId);
+          return;
+        }
+
+        setStatus(`speaking ${index + 1}/${tweets.length}${hasMore ? '' : ' (end)'}\n\n${spoken}`);
+
+        const u = new SpeechSynthesisUtterance(spoken);
+        if (selectedVoice) u.voice = selectedVoice;
+
+        u.onend = async () => {
+          if (!isRunning || localRunId !== runId) return;
+
+          index += 1;
+
+          if (index >= tweets.length) {
+            if (!hasMore) {
+              stopReading('done (no more pages)');
+              return;
+            }
+
+            setStatus('fetching next page...');
+            await fetchNextPage();
+          }
+
+          setTimeout(() => speakOne(localRunId), 0);
+        };
+
+        u.onerror = (e) => {
+          if (!isRunning || localRunId !== runId) return;
+
+          const error = e && typeof e.error === 'string' ? e.error : 'unknown';
+          setStatus(`tts error: ${error}; skipping tweet`);
+          index += 1;
+          setTimeout(() => speakOne(localRunId), 0);
+        };
+
+        window.speechSynthesis.speak(u);
+      }
+
+      startBtn.addEventListener('click', async () => {
+        runId += 1;
+        const localRunId = runId;
+        isRunning = true;
+
+        tweets = [];
+        index = 0;
+        nextCursor = undefined;
+        hasMore = true;
+
+        // Optional but helps on some setups.
+        window.speechSynthesis.cancel();
+        primeVoices();
+
+        setStatus('loading voices...');
+        const voices = await ensureVoicesLoaded(1500);
+        selectedVoice = pickVoice(voices);
+
+        if (voices.length === 0) {
+          stopReading(
+            [
+              'No TTS voices detected in this browser.',
+              '',
+              'If you are on Linux, make sure you are using Chrome/Chromium (not Helium/embedded) and that system TTS is installed.',
+              'Example packages: `speech-dispatcher` + `espeak-ng`.',
+            ].join('\n')
+          );
+          return;
+        }
+
+        setStatus(`voices loaded: ${voices.length}${selectedVoice ? ` (using: ${selectedVoice.name || selectedVoice.lang})` : ''}`);
+
+        try {
+          setStatus('fetching first page...');
+          await fetchNextPage();
+          speakOne(localRunId);
+        } catch (err) {
+          stopReading(`start failed: ${String(err)}`);
+        }
+      });
+
+      stopBtn.addEventListener('click', () => {
+        stopReading('stopped');
+      });
+
+      // Preload voice list (may still require a user gesture).
+      primeVoices();
+    </script>
+  </body>
+</html>
