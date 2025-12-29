@@ -1,0 +1,11 @@
+{
+  "name": "readmyfeed",
+  "private": true,
+  "workspaces": [
+    "server"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w server",
+    "smoke": "npm run smoke -w server"
+  }
+}
