@@ -1,4 +1,4 @@
-import { pageThroughFeed } from './services/feedPaging.js';
+import { pageThroughFeed } from '../services/feedPaging.js';
 
 function makeMockFeed(pages: number) {
   const cursors = Array.from({ length: pages }, (_v, i) => `cursor_${i + 1}`);

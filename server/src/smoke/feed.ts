@@ -1,4 +1,4 @@
-import { getFollowedFeed } from './services/twitter.js';
+import { getFollowedFeed } from '../services/twitter.js';
 
 async function main() {
   const result = await getFollowedFeed({ count: 5 });
