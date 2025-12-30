@@ -1,6 +1,6 @@
 import { Router } from 'express';
 
-import { getFeed } from '../handlers/feed.js';
+import { getFeed } from '../handlers/feedHandler.js';
 
 export const feedRouter = Router();
 

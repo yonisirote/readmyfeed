@@ -17,11 +17,16 @@ export const getFeed: RequestHandler = async (req, res) => {
   try {
     const data = await getFollowedFeed({ count, cursor });
 
+    console.log(
+      `[feed] tweets loaded successfully count=${data.tweets.length} hasMore=${data.hasMore} cursor=${cursor ? 'yes' : 'no'}`
+    );
+
     res.json({
       tweets: data.tweets,
       nextCursor: data.nextCursor,
       hasMore: data.hasMore,
     });
+
   } catch (error) {
     res.status(500).json({
       error: 'failed_to_fetch_feed',

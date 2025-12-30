@@ -123,9 +123,17 @@
         if (!res.ok) throw new Error(`feed request failed: ${res.status}`);
 
         const data = await res.json();
+        const before = tweets.length;
         tweets = tweets.concat(data.tweets || []);
         nextCursor = data.nextCursor;
         hasMore = Boolean(data.hasMore);
+        console.log('[tts] feed page fetched', {
+          got: (data.tweets || []).length,
+          total: tweets.length,
+          before,
+          hasMore,
+          nextCursor: Boolean(nextCursor),
+        });
       }
 
       function stopReading(msg = 'stopped') {
@@ -208,6 +216,7 @@
         setStatus('loading voices...');
         const voices = await ensureVoicesLoaded(1500);
         selectedVoice = pickVoice(voices);
+        console.log('[tts] voices loaded successfully', { count: voices.length, selected: selectedVoice?.name || selectedVoice?.lang || null });
 
         if (voices.length === 0) {
           stopReading(
@@ -226,6 +235,7 @@
         try {
           setStatus('fetching first page...');
           await fetchNextPage();
+          console.log('[tts] tweets loaded successfully', { count: tweets.length, hasMore, nextCursor: Boolean(nextCursor) });
           speakOne(localRunId);
         } catch (err) {
           stopReading(`start failed: ${String(err)}`);

@@ -2,7 +2,7 @@ import cors from 'cors';
 import express from 'express';
 
 import { serverConfig } from './config/server.js';
-import { feedRouter } from './routes/feed.js';
+import { feedRouter } from './routes/feedRoute.js';
 
 const app = express();
 
