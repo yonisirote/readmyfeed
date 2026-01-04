@@ -2,40 +2,49 @@
 
 Read your X/Twitter home feed out loud.
 
-## Dev
+## Current Features
 
-- Smoke test (verifies X feed calls work):
-  - `npm run smoke`
+- Basic feed fetching from X/Twitter
+- Browser-based text-to-speech (TTS)
 
-- Smoke test pagination loop (mocked):
-  - `npm run smoke:pagination:mock`
+## Getting Started
 
-- Run backend:
-  - `npm run dev`
-  - `GET http://localhost:3001/healthz`
-  - `GET http://localhost:3001/api/feed?count=5`
+### 1. Get your API Key
 
-## Pagination contract
+You need an X/Twitter API key to fetch your feed. Follow these steps:
 
-`GET /api/feed` returns:
+**For Chrome/Chromium:**
+1. Install the [X Auth Helper extension](https://chromewebstore.google.com/detail/x-auth-helper/igpkhkjmpdecacocghpgkghdcmcmpfhp)
+2. Open incognito mode and log in to X/Twitter
+3. Click the extension and click "Get Key"
+4. Copy the API key
 
-- `tweets`: current page of tweets
-- `nextCursor`: cursor string for the next page (if any)
-- `hasMore`: boolean indicating whether the client should fetch `nextCursor`
+**For Firefox:**
+1. Install the [Rettiwt Auth Helper extension](https://addons.mozilla.org/en-US/firefox/addon/rettiwt-auth-helper)
+2. Open private mode and log in to X/Twitter
+3. Click the extension and click "Get API Key"
+4. Copy the API key
 
-Client loop:
+Full instructions: https://github.com/Rishikant181/Rettiwt-API
 
-1. Fetch first page: `GET /api/feed?count=10`
-2. Read all returned `tweets`
-3. If `hasMore` is true, fetch next page using:
-   - `GET /api/feed?count=10&cursor=<nextCursor>`
-4. Repeat until `hasMore` is false
+### 2. Configure
 
-Clients should de-dupe by `tweet.id` across pages.
+Create a `.env` file in the `server/` directory with your API key:
 
-## Config
+```bash
+API_KEY=your_api_key_here
+```
 
-Create a root `.env` with:
+### 3. Start the Server
 
-- `API_KEY=...` (from X Auth Helper)
-- `PORT=3001` (optional)
+```bash
+cd server
+npm install
+npm run dev
+```
+
+### 4. Try it out
+
+Open your browser and go to: `http://localhost:3001/tts.html`
+
+You'll be able to fetch your feed and have it read aloud using browser TTS.
