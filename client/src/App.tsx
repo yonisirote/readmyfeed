@@ -1,95 +1,224 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import './App.css';
 
-import { Http } from '@capacitor-community/http';
+import { fetchXHomeTimeline } from './services/xHomeTimeline.js';
+import { Tts } from './native/tts.js';
 
-type LogLine = {
-  level: 'info' | 'error';
-  message: string;
+const nativeLog = async (message: string): Promise<void> => {
+  try {
+    const logger = (window as any)?.__RMF_NATIVE_LOG__;
+    if (typeof logger === 'function') {
+      logger(message);
+    } else {
+      console.log('[rmf] nativeLog: __RMF_NATIVE_LOG__ missing');
+    }
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    console.log(`[rmf] nativeLog failed: ${msg}`);
+  }
 };
+
+
+type TweetSample = {
+  id: string;
+  user?: string;
+  text?: string;
+};
+
+
+declare global {
+  interface Window {
+    __RMF_API_KEY__?: string;
+    __RMF_AUTO_RUN__?: boolean;
+  }
+}
 
 function App() {
   const [apiKey, setApiKey] = useState('');
-  const [count, setCount] = useState(5);
+  const [count] = useState(5);
   const [cursor, setCursor] = useState<string | undefined>(undefined);
+  void cursor;
   const [isLoading, setIsLoading] = useState(false);
-  const [logs, setLogs] = useState<LogLine[]>([]);
+  const [tweets, setTweets] = useState<TweetSample[]>([]);
+  const [error, setError] = useState<string | undefined>(undefined);
 
-  // Note: `rettiwt-api` cannot run in a WebView (Node-only deps).
-  // Keep placeholder here so UI stays stable.
-  useMemo(() => null, []);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [speakIndex, setSpeakIndex] = useState(0);
 
-  const appendLog = (line: LogLine) => {
-    setLogs((prev) => [{ ...line }, ...prev].slice(0, 200));
+  const setErrorMessage = (message: string | undefined) => {
+    setError(message);
+    if (message) {
+      void nativeLog(`ui error: ${message}`);
+    }
   };
 
-  const fetchOnce = async (_nextCursor?: string) => {
-    appendLog({
-      level: 'error',
-      message: 'Web fetch disabled in Capacitor: rettiwt-api breaks in WebView. Use Native fetch.',
-    });
+  const buildSpokenText = (tweet: TweetSample): string => {
+    const user = tweet.user ? `@${tweet.user}` : '@unknown';
+    const body = tweet.text ?? '';
+    return `${user}: ${body}`;
   };
 
-  const fetchOnceNative = async (nextCursor?: string) => {
-    if (!apiKey.trim()) {
-      appendLog({ level: 'error', message: 'Missing API key.' });
+  const speakCurrentTweet = async (tweetIndex: number): Promise<void> => {
+    if (tweets.length === 0) {
+      setErrorMessage('No tweets loaded.');
       return;
     }
 
+    const clampedIndex = Math.min(Math.max(tweetIndex, 0), tweets.length - 1);
+    const tweet = tweets[clampedIndex];
+
+    if (!tweet) {
+      setErrorMessage('Invalid tweet index.');
+      return;
+    }
+
+    const utteranceId = tweet.id || `tweet_${clampedIndex}`;
+    const text = buildSpokenText(tweet);
+
+    await nativeLog(`tts speak idx=${clampedIndex} utteranceId=${utteranceId}`);
+    await Tts.speak({ text, utteranceId });
+  };
+
+  const fetchOnceNative = async (nextCursor?: string, apiKeyOverride?: string) => {
+    const effectiveApiKey = (apiKeyOverride ?? apiKey).trim();
+    await nativeLog(`fetchOnceNative invoked apiKeyLen=${effectiveApiKey.length}`);
+
+    if (!effectiveApiKey) {
+      setErrorMessage('Missing API key.');
+      return;
+    }
+
+    setErrorMessage(undefined);
     setIsLoading(true);
-    appendLog({
-      level: 'info',
-      message: `Fetching (native http)… count=${count} cursor=${nextCursor ? 'set' : 'none'}`,
-    });
 
     try {
-      // NOTE: Keep this minimal for now: just prove native HTTP can bypass CORS.
-      // We call our existing backend route (or you can later point this directly to x.com).
-      const baseUrl = 'http://10.0.2.2:3001';
-      const url = new URL('/api/feed', baseUrl);
-
-      const params: Record<string, string> = {
-        count: String(count),
-      };
-      if (nextCursor) params.cursor = nextCursor;
-
-      appendLog({ level: 'info', message: `Native GET ${url.toString()} params=${JSON.stringify(params)}` });
-
-      const res = await Http.get({
-        url: url.toString(),
-        params,
-        headers: {},
-        connectTimeout: 15000,
-        readTimeout: 15000,
+      const result = await fetchXHomeTimeline({
+        apiKey: effectiveApiKey,
+        count,
+        cursor: nextCursor,
+        log: (message) => {
+          void nativeLog(message);
+        },
       });
 
-      appendLog({ level: 'info', message: `Native response status=${res.status}` });
-      appendLog({ level: 'info', message: `Native response keys=${Object.keys(res ?? {}).join(',')}` });
+      setCursor(result.nextCursor);
+      setTweets(result.tweetSamples);
 
-      const data = res.data as any;
-      const tweets = Array.isArray(data?.tweets) ? data.tweets : [];
-      appendLog({ level: 'info', message: `Native parsed tweets=${tweets.length} hasMore=${Boolean(data?.hasMore)}` });
-
-      const next = typeof data?.nextCursor === 'string' ? data.nextCursor : undefined;
-      setCursor(next);
+      for (const t of result.tweetSamples) {
+        void nativeLog(`tweet id=${t.id} user=${t.user ?? '(unknown)'} text=${t.text ?? ''}`);
+      }
     } catch (error) {
-      appendLog({
-        level: 'error',
-        message: `Native fetch failed: ${error instanceof Error ? error.message : String(error)}`,
-      });
+      const message = error instanceof Error ? error.message : String(error);
+      setErrorMessage(`Native fetch failed: ${message}`);
+      console.log(`[rmf] native fetch failed: ${message}`);
+      await nativeLog(`native fetch failed: ${message}`);
     } finally {
       setIsLoading(false);
     }
   };
 
+  useEffect(() => {
+    const keyFromIntent = typeof window.__RMF_API_KEY__ === 'string' ? window.__RMF_API_KEY__ : '';
+    const shouldAutoRun = Boolean(window.__RMF_AUTO_RUN__);
+
+    let removeDone: (() => Promise<void>) | undefined;
+    let removeError: (() => Promise<void>) | undefined;
+
+    void (async () => {
+      const doneListener = await Tts.addListener('ttsDone', async () => {
+        // Advance and speak the next tweet
+        setSpeakIndex((prev) => prev + 1);
+      });
+      removeDone = doneListener.remove;
+
+      const errorListener = await Tts.addListener('ttsError', (evt) => {
+        const message = typeof evt?.message === 'string' ? evt.message : 'Unknown TTS error';
+        setErrorMessage(`TTS error: ${message}`);
+        setIsSpeaking(false);
+      });
+      removeError = errorListener.remove;
+    })();
+
+    if (keyFromIntent && !apiKey.trim()) {
+      setApiKey(keyFromIntent);
+      console.log('[rmf] API key received from intent extras');
+    }
+
+    if (shouldAutoRun && keyFromIntent) {
+      console.log('[rmf] auto-run: starting native X fetch');
+      void nativeLog(`auto-run calling fetchOnceNative keyLen=${keyFromIntent.length}`);
+      void fetchOnceNative(undefined, keyFromIntent);
+    }
+
+    return () => {
+      void removeDone?.();
+      void removeError?.();
+    };
+    // Only run once on mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const onFetchFirstPage = async () => {
     setCursor(undefined);
-    await fetchOnce(undefined);
+    setSpeakIndex(0);
+    await fetchOnceNative(undefined);
   };
 
-  const onFetchNextPage = async () => {
-    await fetchOnce(cursor);
+  const onSpeak = async () => {
+    setErrorMessage(undefined);
+
+    if (tweets.length === 0) {
+      setErrorMessage('No tweets loaded.');
+      return;
+    }
+
+    const indexToSpeak = Math.min(Math.max(speakIndex, 0), tweets.length - 1);
+
+    setIsSpeaking(true);
+    setSpeakIndex(indexToSpeak);
+
+    try {
+      await speakCurrentTweet(indexToSpeak);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setErrorMessage(`TTS failed: ${message}`);
+      setIsSpeaking(false);
+    }
   };
+
+  useEffect(() => {
+    if (!isSpeaking) return;
+    if (tweets.length === 0) return;
+
+    if (speakIndex >= tweets.length) {
+      setIsSpeaking(false);
+      setSpeakIndex(0);
+      return;
+    }
+
+    void (async () => {
+      try {
+        await speakCurrentTweet(speakIndex);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        setErrorMessage(`TTS failed: ${message}`);
+        setIsSpeaking(false);
+      }
+    })();
+  }, [isSpeaking, speakIndex, tweets]);
+
+  const onStop = async () => {
+    setErrorMessage(undefined);
+    try {
+      await Tts.stop();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setErrorMessage(`TTS stop failed: ${message}`);
+    } finally {
+      setIsSpeaking(false);
+    }
+  };
+
 
   return (
     <div style={{ maxWidth: 720, margin: '0 auto', padding: 16 }}>
@@ -113,47 +242,25 @@ function App() {
           />
         </label>
 
-        <label style={{ display: 'grid', gap: 6 }}>
-          <span>Count</span>
-          <input
-            type="number"
-            value={count}
-            onChange={(e) => setCount(Number(e.target.value))}
-            min={1}
-            max={35}
-          />
-        </label>
+         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+           <button onClick={onFetchFirstPage} disabled={isLoading || !apiKey.trim()}>
+             Fetch first 5 tweets
+           </button>
 
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <button onClick={onFetchFirstPage} disabled={isLoading || !apiKey.trim()}>
-            Fetch first page
-          </button>
-          <button onClick={onFetchNextPage} disabled={isLoading || !apiKey.trim() || !cursor}>
-            Fetch next page
-          </button>
-          <button
-            onClick={async () => {
-              setCursor(undefined);
-              await fetchOnceNative(undefined);
-            }}
-            disabled={isLoading}
-          >
-            Native fetch (server)
-          </button>
-          <button
-            onClick={() => {
-              setLogs([]);
-            }}
-            disabled={isLoading}
-          >
-            Clear logs
-          </button>
-        </div>
+           <button onClick={onSpeak} disabled={isLoading || tweets.length === 0}>
+             Speak (from {Math.min(speakIndex + 1, Math.max(tweets.length, 1))}/{Math.max(tweets.length, 1)})
+           </button>
+
+           <button onClick={onStop} disabled={!isSpeaking}>
+             Stop
+           </button>
+         </div>
+
 
         <div style={{ fontFamily: 'monospace', fontSize: 12 }}>
           <div style={{ marginBottom: 8 }}>
-            <strong>Status:</strong> {isLoading ? 'loading…' : 'idle'} | <strong>Cursor:</strong>{' '}
-            {cursor ? `${cursor.slice(0, 12)}…` : '(none)'}
+            <strong>Status:</strong> {isLoading ? 'loading…' : 'idle'}
+            {error ? ` | ERROR: ${error}` : ''}
           </div>
 
           <div
@@ -165,11 +272,16 @@ function App() {
               whiteSpace: 'pre-wrap',
             }}
           >
-            {logs.length === 0
-              ? 'Logs will appear here.'
-              : logs
-                  .map((l) => `${l.level.toUpperCase()}: ${l.message}`)
-                  .join('\n')}
+            {tweets.length === 0
+              ? 'No tweets loaded.'
+              : tweets
+                  .slice(0, 5)
+                  .map((t, idx) => {
+                    const header = `${idx + 1}. @${t.user ?? '(unknown)'} — ${t.id}`;
+                    const body = t.text ?? '';
+                    return `${header}\n${body}`;
+                  })
+                  .join('\n\n')}
           </div>
         </div>
       </div>
