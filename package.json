@@ -2,11 +2,11 @@
   "name": "readmyfeed",
   "private": true,
   "workspaces": [
-    "server"
+    "backup/server"
   ],
   "scripts": {
-    "dev": "npm run dev -w server",
-    "smoke": "npm run smoke -w server",
-    "smoke:pagination:mock": "npm run smoke:pagination:mock -w server"
+    "dev": "npm run dev -w backup/server",
+    "smoke": "npm run smoke -w backup/server",
+    "smoke:pagination:mock": "npm run smoke:pagination:mock -w backup/server"
   }
 }
