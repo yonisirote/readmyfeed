@@ -4,8 +4,9 @@ Read your X/Twitter home feed out loud.
 
 ## Current Features
 
-- Basic feed fetching from X/Twitter
-- Browser-based text-to-speech (TTS)
+- Expo app for fetching the X/Twitter home timeline
+- Basic feed preview UI (API key input + tweets list)
+- CLI fetch script for quick verification
 
 ## Getting Started
 
@@ -27,24 +28,32 @@ You need an X/Twitter API key to fetch your feed. Follow these steps:
 
 Full instructions: https://github.com/Rishikant181/Rettiwt-API
 
-### 2. Configure
-
-Create a `.env` file in the `server/` directory with your API key:
+### 2. Install dependencies
 
 ```bash
-API_KEY=your_api_key_here
-```
-
-### 3. Start the Server
-
-```bash
-cd server
+cd client
 npm install
-npm run dev
 ```
 
-### 4. Try it out
+### 3. Start the Expo app
 
-Open your browser and go to: `http://localhost:3001/tts.html`
+```bash
+cd client
+npm run start
+```
 
-You'll be able to fetch your feed and have it read aloud using browser TTS.
+Open the app on a device/simulator, paste your API key, and fetch the first page.
+
+### 4. CLI fetch (no device required)
+
+```bash
+cd client
+API_KEY=your_api_key_here npm run fetch:cli
+```
+
+Or pass the key directly:
+
+```bash
+cd client
+npm run fetch:cli -- --api-key "your_api_key_here"
+```

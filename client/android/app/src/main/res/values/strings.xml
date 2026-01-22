@@ -1,7 +1,0 @@
-<?xml version='1.0' encoding='utf-8'?>
-<resources>
-    <string name="app_name">readmyfeed</string>
-    <string name="title_activity_main">readmyfeed</string>
-    <string name="package_name">com.readmyfeed.app</string>
-    <string name="custom_url_scheme">com.readmyfeed.app</string>
-</resources>

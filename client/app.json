@@ -1,0 +1,15 @@
+{
+  "expo": {
+    "name": "ReadMyFeed",
+    "slug": "readmyfeed",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "android": {
+      "package": "com.readmyfeed.app"
+    },
+    "ios": {
+      "bundleIdentifier": "com.readmyfeed.app"
+    }
+  }
+}

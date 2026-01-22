@@ -1,4 +1,3 @@
-import { Http } from '@capacitor-community/http';
 import ClientTransaction from 'x-client-transaction-id';
 
 export type XHomeTimelineOptions = {
@@ -24,9 +23,25 @@ export type XHomeTimelineResult = {
 type ParsedCookies = {
   rawCookieHeader: string;
   csrfToken?: string;
+  hasAuthToken: boolean;
+  hasKdt: boolean;
+  hasTwid: boolean;
 };
 
-const X_TIMELINE_PATH = '/i/api/graphql/CRprHpVA12yhsub-KRERIg/HomeLatestTimeline';
+const X_TIMELINE_PATH = '/i/api/graphql/_qO7FJzShSKYWi9gtboE6A/HomeLatestTimeline';
+
+const DEFAULT_BEARER_TOKEN =
+  'AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA';
+
+const DEFAULT_HEADERS: Record<string, string> = {
+  Authority: 'x.com',
+  'Accept-Language': 'en-US,en;q=0.9',
+  'Cache-Control': 'no-cache',
+  Referer: 'https://x.com',
+  'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64; rv:144.0) Gecko/20100101 Firefox/144.0',
+  'X-Twitter-Active-User': 'yes',
+  'X-Twitter-Client-Language': 'en',
+};
 
 const safeBodyPrefix = (text: string, maxLen = 800): string => {
   const cleaned = text.replaceAll(/\s+/g, ' ').trim();
@@ -35,83 +50,103 @@ const safeBodyPrefix = (text: string, maxLen = 800): string => {
 
 const decodeApiKeyToCookies = (key: string): ParsedCookies => {
   const decoded = atob(key.trim());
-  const rawCookieHeader = decoded;
+  const cookiePairs = decoded.split(';');
+  const cookieMap = new Map<string, string>();
 
-  const match = rawCookieHeader.match(/(?:^|;\s*)ct0=([^;]+)/);
-  const csrfToken = match?.[1];
-
-  return { rawCookieHeader, csrfToken };
-};
-
-const extractBearerFromText = (text: string): string | undefined => {
-  // X web client includes an Authorization Bearer token in its JS bundles.
-  // Token format tends to be URL-encoded at least for '='.
-  const match = text.match(/Bearer\s+([A-Za-z0-9%._~-]+)/);
-  return match?.[1];
-};
-
-const resolveXUrl = (maybeRelativeUrl: string): string => {
-  if (maybeRelativeUrl.startsWith('http://') || maybeRelativeUrl.startsWith('https://')) {
-    return maybeRelativeUrl;
-  }
-  if (maybeRelativeUrl.startsWith('/')) {
-    return `https://x.com${maybeRelativeUrl}`;
-  }
-  return `https://x.com/${maybeRelativeUrl}`;
-};
-
-const extractXScriptUrls = (html: string): string[] => {
-  const doc = new DOMParser().parseFromString(html, 'text/html');
-
-  const urls = new Set<string>();
-
-  const scriptEls = Array.from(doc.querySelectorAll('script[src]'));
-  for (const el of scriptEls) {
-    const src = el.getAttribute('src');
-    if (!src) continue;
-    urls.add(resolveXUrl(src));
+  for (const pair of cookiePairs) {
+    const trimmed = pair.trim();
+    if (!trimmed) continue;
+    const [name, ...rest] = trimmed.split('=');
+    if (!name || rest.length === 0) continue;
+    cookieMap.set(name, rest.join('='));
   }
 
-  for (const match of html.matchAll(/\b(?:src|href)=(["'])([^"']+\.(?:js|mjs))\1/g)) {
-    urls.add(resolveXUrl(match[2] ?? ''));
-  }
+  const authToken = cookieMap.get('auth_token');
+  const csrfToken = cookieMap.get('ct0');
+  const kdt = cookieMap.get('kdt');
+  const twid = cookieMap.get('twid');
 
-  return [...urls].filter((u) => u.includes('/assets/') || u.includes('twimg.com'));
+  const parts: string[] = [];
+  if (authToken) parts.push(`auth_token=${authToken}`);
+  if (csrfToken) parts.push(`ct0=${csrfToken}`);
+  if (kdt) parts.push(`kdt=${kdt}`);
+  if (twid) parts.push(`twid=${twid}`);
+
+  const rawCookieHeader = parts.length ? `${parts.join(';')};` : decoded;
+
+  return {
+    rawCookieHeader,
+    csrfToken,
+    hasAuthToken: Boolean(authToken),
+    hasKdt: Boolean(kdt),
+    hasTwid: Boolean(twid),
+  };
 };
 
-const fetchBearerTokenFromX = async (rawCookieHeader: string, xHtml: string, log?: (m: string) => void) => {
-  const candidates = extractXScriptUrls(xHtml).slice(0, 6);
-  log?.(`bearer candidate scripts=${candidates.length}`);
 
-  for (const scriptUrl of candidates) {
-    try {
-      log?.(`bearer scanning ${scriptUrl}`);
-      const res = await Http.get({
-        url: scriptUrl,
-        headers: {
-          Cookie: rawCookieHeader,
-        },
-        params: {},
-        connectTimeout: 15000,
-        readTimeout: 15000,
-      });
+type FetchTextResult = {
+  status: number;
+  text: string;
+};
 
-      const jsText = typeof res.data === 'string' ? res.data : '';
-      if (!jsText) continue;
+const isReactNative = typeof navigator !== 'undefined' && navigator.product === 'ReactNative';
 
-      const bearer = extractBearerFromText(jsText);
-      if (bearer) {
-        log?.(`bearer extracted len=${bearer.length}`);
-        return bearer;
+const fetchText = async (
+  url: string,
+  headers: Record<string, string>,
+  timeoutMs: number,
+  log?: (message: string) => void,
+): Promise<FetchTextResult> => {
+  try {
+    if (isReactNative) {
+      const FileSystem = await import('expo-file-system');
+      const baseDir = FileSystem.cacheDirectory ?? FileSystem.documentDirectory;
+      if (!baseDir) {
+        throw new Error('Missing Expo file system directory.');
       }
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error);
-      log?.(`bearer scan failed: ${msg}`);
-    }
-  }
 
-  return undefined;
+      const tempUri = `${baseDir}rmf-${Date.now()}-${Math.random().toString(16).slice(2)}.txt`;
+      let status = 0;
+      let text = '';
+
+      try {
+        const res = await FileSystem.downloadAsync(url, tempUri, { headers });
+        status = res.status ?? 0;
+        text = await FileSystem.readAsStringAsync(res.uri);
+      } finally {
+        await FileSystem.deleteAsync(tempUri, { idempotent: true });
+      }
+
+      if (status >= 400) {
+        const body = safeBodyPrefix(text);
+        log?.(`fetch failed status=${status} url=${url} body=${body}`);
+      }
+
+      return { status, text };
+    }
+
+    const { default: axios } = await import('axios');
+    const response = await axios.get(url, {
+      headers,
+      timeout: timeoutMs,
+      responseType: 'text',
+      transformResponse: (data) => data,
+      validateStatus: () => true,
+    });
+
+    const text = typeof response.data === 'string' ? response.data : JSON.stringify(response.data ?? {});
+    if (response.status >= 400) {
+      const body = safeBodyPrefix(text);
+      log?.(`fetch failed status=${response.status} url=${url} body=${body}`);
+    }
+
+    return { status: response.status, text };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Request failed url=${url} error=${message}`);
+  }
 };
+
 
 const buildGraphqlUrl = (count: number, cursor?: string): string => {
   const url = new URL(`https://x.com${X_TIMELINE_PATH}`);
@@ -125,37 +160,40 @@ const buildGraphqlUrl = (count: number, cursor?: string): string => {
   if (cursor) variables.cursor = cursor;
 
   const features: Record<string, boolean> = {
-    responsive_web_graphql_timeline_navigation_enabled: true,
     rweb_video_screen_enabled: false,
+    profile_label_improvements_pcf_label_in_post_enabled: true,
+    responsive_web_profile_redirect_enabled: false,
+    rweb_tipjar_consumption_enabled: true,
+    verified_phone_label_enabled: true,
+    creator_subscriptions_tweet_preview_api_enabled: true,
+    responsive_web_graphql_timeline_navigation_enabled: true,
+    responsive_web_graphql_skip_user_profile_image_extensions_enabled: false,
+    premium_content_api_read_enabled: false,
+    communities_web_enable_tweet_community_results_fetch: true,
+    c9s_tweet_anatomy_moderator_badge_enabled: true,
+    responsive_web_grok_analyze_button_fetch_trends_enabled: false,
+    responsive_web_grok_analyze_post_followups_enabled: true,
+    responsive_web_jetfuel_frame: true,
+    responsive_web_grok_share_attachment_enabled: true,
+    articles_preview_enabled: true,
+    responsive_web_edit_tweet_api_enabled: true,
+    graphql_is_translatable_rweb_tweet_is_translatable_enabled: true,
     view_counts_everywhere_api_enabled: true,
     longform_notetweets_consumption_enabled: true,
-    responsive_web_jetfuel_frame: false,
-    graphql_is_translatable_rweb_tweet_is_translatable_enabled: false,
+    responsive_web_twitter_article_tweet_consumption_enabled: true,
     tweet_awards_web_tipping_enabled: false,
-    longform_notetweets_rich_text_read_enabled: true,
-    c9s_tweet_anatomy_moderator_badge_enabled: true,
-    premium_content_api_read_enabled: false,
-    responsive_web_grok_share_attachment_enabled: false,
-    verified_phone_label_enabled: false,
-    responsive_web_grok_analysis_button_from_backend: false,
-    responsive_web_edit_tweet_api_enabled: false,
-    responsive_web_graphql_skip_user_profile_image_extensions_enabled: false,
-    profile_label_improvements_pcf_label_in_post_enabled: true,
-    articles_preview_enabled: true,
-    creator_subscriptions_quote_tweet_preview_enabled: false,
     responsive_web_grok_show_grok_translated_post: false,
-    responsive_web_grok_analyze_post_followups_enabled: false,
+    responsive_web_grok_analysis_button_from_backend: true,
+    creator_subscriptions_quote_tweet_preview_enabled: false,
+    freedom_of_speech_not_reach_fetch_enabled: true,
+    standardized_nudges_misinfo: true,
+    tweet_with_visibility_results_prefer_gql_limited_actions_policy_enabled: true,
+    longform_notetweets_rich_text_read_enabled: true,
     longform_notetweets_inline_media_enabled: true,
-    communities_web_enable_tweet_community_results_fetch: true,
-    creator_subscriptions_tweet_preview_api_enabled: false,
-    freedom_of_speech_not_reach_fetch_enabled: false,
-    responsive_web_grok_image_annotation_enabled: false,
+    responsive_web_grok_image_annotation_enabled: true,
+    responsive_web_grok_imagine_annotation_enabled: true,
+    responsive_web_grok_community_note_auto_translation_is_enabled: false,
     responsive_web_enhance_cards_enabled: false,
-    tweet_with_visibility_results_prefer_gql_limited_actions_policy_enabled: false,
-    responsive_web_grok_analyze_button_fetch_trends_enabled: false,
-    responsive_web_twitter_article_tweet_consumption_enabled: false,
-    standardized_nudges_misinfo: false,
-    rweb_tipjar_consumption_enabled: false,
   };
 
   url.searchParams.set('variables', JSON.stringify(variables));
@@ -186,10 +224,27 @@ const parseTimeline = (data: unknown): { entries: any[]; nextCursor?: string; tw
   return { entries, nextCursor: typeof next === 'string' ? next : undefined, tweetEntries };
 };
 
+const unwrapTweetResult = (result: any): any | undefined => {
+  if (!result) return undefined;
+  if (result.tweet) return result.tweet;
+  if (result.result) return result.result;
+  return result;
+};
+
 const toTweetSample = (tweetResult: any): XHomeTimelineTweetSample => {
-  const id = String(tweetResult?.rest_id ?? '');
-  const user = tweetResult?.core?.user_results?.result?.legacy?.screen_name;
-  const text = tweetResult?.legacy?.full_text ?? tweetResult?.legacy?.text;
+  const resolved = unwrapTweetResult(tweetResult);
+  const retweeted = unwrapTweetResult(resolved?.legacy?.retweeted_status_result?.result);
+  const base = resolved ?? retweeted;
+
+  const id = String(base?.rest_id ?? '');
+  const user =
+    base?.core?.user_results?.result?.legacy?.screen_name ??
+    retweeted?.core?.user_results?.result?.legacy?.screen_name;
+  const text =
+    base?.legacy?.full_text ??
+    base?.legacy?.text ??
+    retweeted?.legacy?.full_text ??
+    retweeted?.legacy?.text;
 
   return {
     id,
@@ -208,63 +263,75 @@ export const fetchXHomeTimeline = async (options: XHomeTimelineOptions): Promise
     throw new Error('Missing API key.');
   }
 
-  const { rawCookieHeader, csrfToken } = decodeApiKeyToCookies(apiKey);
+  if (typeof DOMParser !== 'function') {
+    throw new Error('DOMParser is not available. Ensure polyfills are loaded.');
+  }
+
+  const { rawCookieHeader, csrfToken, hasAuthToken, hasKdt, hasTwid } = decodeApiKeyToCookies(apiKey);
+
+  log?.(`cookie parts auth=${hasAuthToken} kdt=${hasKdt} twid=${hasTwid} csrf=${Boolean(csrfToken)}`);
 
   log?.('requesting x.com HTML');
-  const docRes = await Http.get({
-    url: 'https://x.com',
-    headers: {
+  const docRes = await fetchText(
+    'https://x.com',
+    {
+      ...DEFAULT_HEADERS,
       Cookie: rawCookieHeader,
     },
-    params: {},
-    connectTimeout: 15000,
-    readTimeout: 15000,
-  });
+    15000,
+    log,
+  );
 
-  const docHtml = typeof docRes.data === 'string' ? docRes.data : '';
+  if (docRes.status !== 200) {
+    throw new Error(`Failed to fetch x.com HTML (status=${docRes.status}).`);
+  }
+
+  const docHtml = docRes.text;
   if (!docHtml) {
     throw new Error('Failed to fetch x.com HTML (empty response).');
   }
 
-  const doc = new DOMParser().parseFromString(docHtml, 'text/html');
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(docHtml, 'text/html');
+
+  const bearer = DEFAULT_BEARER_TOKEN;
 
   log?.('generating x-client-transaction-id');
   const tx = await ClientTransaction.create(doc);
   const transactionId = await tx.generateTransactionId('GET', X_TIMELINE_PATH);
 
-  log?.('extracting bearer token');
-  const bearer = await fetchBearerTokenFromX(rawCookieHeader, docHtml, log);
-  if (!bearer) {
-    throw new Error('Failed to extract Bearer token from X assets.');
-  }
-
   const url = buildGraphqlUrl(count, cursor);
   log?.(`requesting timeline ${cursor ? 'cursor=set' : 'cursor=none'}`);
 
-  const res = await Http.get({
+  const timelineRes = await fetchText(
     url,
-    headers: {
+    {
+      ...DEFAULT_HEADERS,
       ...(csrfToken ? { 'x-csrf-token': csrfToken } : {}),
       'x-client-transaction-id': transactionId,
-      'x-twitter-active-user': 'yes',
-      'x-twitter-client-language': 'en',
       authorization: `Bearer ${bearer}`,
-      referer: 'https://x.com/',
       Cookie: rawCookieHeader,
     },
-    params: {},
-    connectTimeout: 15000,
-    readTimeout: 15000,
-  });
+    15000,
+    log,
+  );
 
-  if (res.status !== 200) {
-    const body = typeof res.data === 'string' ? res.data : JSON.stringify(res.data ?? '');
-    throw new Error(`Timeline request failed status=${res.status} bodyPrefix=${safeBodyPrefix(body)}`);
+  const bodyText = timelineRes.text;
+  if (timelineRes.status !== 200) {
+    throw new Error(`Timeline request failed status=${timelineRes.status} bodyPrefix=${safeBodyPrefix(bodyText)}`);
   }
 
-  const { entries, nextCursor, tweetEntries } = parseTimeline(res.data);
+  let data: unknown;
+  try {
+    data = JSON.parse(bodyText);
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    throw new Error(`Failed to parse timeline JSON: ${msg}`);
+  }
+
+  const { entries, nextCursor, tweetEntries } = parseTimeline(data);
   const tweetSamples = tweetEntries
-    .slice(0, 5)
+    .slice(0, count)
     .map((e) => e?.content?.itemContent?.tweet_results?.result)
     .filter(Boolean)
     .map(toTweetSample)

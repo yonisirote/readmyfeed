@@ -1,12 +1,11 @@
 {
   "name": "readmyfeed",
   "private": true,
-  "workspaces": [
-    "backup/server"
-  ],
   "scripts": {
-    "dev": "npm run dev -w backup/server",
-    "smoke": "npm run smoke -w backup/server",
-    "smoke:pagination:mock": "npm run smoke:pagination:mock -w backup/server"
+    "dev": "npm --prefix client run start",
+    "android": "npm --prefix client run android",
+    "ios": "npm --prefix client run ios",
+    "web": "npm --prefix client run web",
+    "fetch:cli": "npm --prefix client run fetch:cli"
   }
 }
