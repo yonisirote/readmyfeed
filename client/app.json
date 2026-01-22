@@ -5,6 +5,9 @@
     "version": "0.1.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
+    "splash": {
+      "backgroundColor": "#f2d8c4"
+    },
     "android": {
       "package": "com.readmyfeed.app"
     },
