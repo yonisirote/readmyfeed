@@ -1,9 +1,9 @@
 import ClientTransaction from 'x-client-transaction-id';
 
-import { parseTimeline, toTweetSample } from './xTimelineParsing.js';
-import type { XHomeTimelineOptions, XHomeTimelineResult } from './xHomeTypes.js';
+import { parseTimeline, toTweetSample } from './xTimelineParsing';
+import type { XHomeTimelineOptions, XHomeTimelineResult } from './xHomeTypes';
 
-export type { XHomeTimelineTweetSample } from './xHomeTypes.js';
+export type { XHomeTimelineTweetSample } from './xHomeTypes';
 
 type ParsedCookies = {
   rawCookieHeader: string;

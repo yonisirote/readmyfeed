@@ -1,4 +1,4 @@
-import type { XHomeTimelineTweetSample } from './xHomeTypes.js';
+import type { XHomeTimelineTweetSample } from './xHomeTypes';
 
 export type TimelineParseResult = {
   entries: any[];
