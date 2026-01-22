@@ -231,15 +231,26 @@ const unwrapTweetResult = (result: any): any | undefined => {
   return result;
 };
 
+const resolveUserScreenName = (tweetResult: any): string | undefined => {
+  const userResult = tweetResult?.core?.user_results?.result;
+  const legacy = userResult?.legacy ?? userResult?.result?.legacy ?? userResult?.user?.legacy;
+  const candidate =
+    userResult?.core?.screen_name ??
+    legacy?.screen_name ??
+    userResult?.screen_name ??
+    userResult?.legacy?.screen_name ??
+    tweetResult?.core?.user_results?.legacy?.screen_name;
+
+  return typeof candidate === 'string' ? candidate : undefined;
+};
+
 const toTweetSample = (tweetResult: any): XHomeTimelineTweetSample => {
   const resolved = unwrapTweetResult(tweetResult);
   const retweeted = unwrapTweetResult(resolved?.legacy?.retweeted_status_result?.result);
   const base = resolved ?? retweeted;
 
   const id = String(base?.rest_id ?? '');
-  const user =
-    base?.core?.user_results?.result?.legacy?.screen_name ??
-    retweeted?.core?.user_results?.result?.legacy?.screen_name;
+  const user = resolveUserScreenName(base) ?? resolveUserScreenName(retweeted);
   const text =
     base?.legacy?.full_text ??
     base?.legacy?.text ??
