@@ -57,3 +57,17 @@ Or pass the key directly:
 cd client
 npm run fetch:cli -- --api-key "your_api_key_here"
 ```
+
+### 5. Run tests
+
+```bash
+cd client
+npm test
+```
+
+### 6. Build an APK (EAS)
+
+```bash
+cd client
+npx eas build -p android --profile preview
+```
