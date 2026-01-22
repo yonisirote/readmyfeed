@@ -10,6 +10,11 @@
     },
     "ios": {
       "bundleIdentifier": "com.readmyfeed.app"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "b9010bb7-f7f6-406a-b4d5-d05fbc3cbbc2"
+      }
     }
   }
 }

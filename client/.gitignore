@@ -13,6 +13,8 @@ dist
 web-build
 android
 ios
+credentials.json
+android/keystores
 
 # Editor directories and files
 .vscode/*
