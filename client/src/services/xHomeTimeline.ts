@@ -1,75 +1,24 @@
 import ClientTransaction from 'x-client-transaction-id';
 import * as FileSystem from 'expo-file-system';
 
-import { parseTimeline, toTweetSample } from './xTimelineParsing';
+import { decodeApiKeyToCookies } from './xHome/xHomeCookies';
+import {
+  DEFAULT_BEARER_TOKEN,
+  DEFAULT_HEADERS,
+  X_BASE_URL,
+  X_TIMELINE_PATH,
+} from './xHome/xHomeConfig';
+import { buildGraphqlUrl } from './xHome/xHomeTimelineUrl';
 import type { XHomeTimelineOptions, XHomeTimelineResult } from './xHomeTypes';
+import { parseTimeline, toTweetSample } from './xTimelineParsing';
 
 export type { XHomeTimelineTweetSample } from './xHomeTypes';
-
-type ParsedCookies = {
-  rawCookieHeader: string;
-  csrfToken?: string;
-  hasAuthToken: boolean;
-  hasKdt: boolean;
-  hasTwid: boolean;
-};
-
-const X_TIMELINE_PATH =
-  '/i/api/graphql/_qO7FJzShSKYWi9gtboE6A/HomeLatestTimeline';
-
-const DEFAULT_BEARER_TOKEN =
-  'AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA';
-
-const DEFAULT_HEADERS: Record<string, string> = {
-  Authority: 'x.com',
-  'Accept-Language': 'en-US,en;q=0.9',
-  'Cache-Control': 'no-cache',
-  Referer: 'https://x.com',
-  'User-Agent':
-    'Mozilla/5.0 (X11; Linux x86_64; rv:144.0) Gecko/20100101 Firefox/144.0',
-  'X-Twitter-Active-User': 'yes',
-  'X-Twitter-Client-Language': 'en',
-};
 
 const safeBodyPrefix = (text: string, maxLen = 800): string => {
   const cleaned = text.replaceAll(/\s+/g, ' ').trim();
   return cleaned.slice(0, maxLen);
 };
 
-const decodeApiKeyToCookies = (key: string): ParsedCookies => {
-  const decoded = atob(key.trim());
-  const cookiePairs = decoded.split(';');
-  const cookieMap = new Map<string, string>();
-
-  for (const pair of cookiePairs) {
-    const trimmed = pair.trim();
-    if (!trimmed) continue;
-    const [name, ...rest] = trimmed.split('=');
-    if (!name || rest.length === 0) continue;
-    cookieMap.set(name, rest.join('='));
-  }
-
-  const authToken = cookieMap.get('auth_token');
-  const csrfToken = cookieMap.get('ct0');
-  const kdt = cookieMap.get('kdt');
-  const twid = cookieMap.get('twid');
-
-  const parts: string[] = [];
-  if (authToken) parts.push(`auth_token=${authToken}`);
-  if (csrfToken) parts.push(`ct0=${csrfToken}`);
-  if (kdt) parts.push(`kdt=${kdt}`);
-  if (twid) parts.push(`twid=${twid}`);
-
-  const rawCookieHeader = parts.length ? `${parts.join(';')};` : decoded;
-
-  return {
-    rawCookieHeader,
-    csrfToken,
-    hasAuthToken: Boolean(authToken),
-    hasKdt: Boolean(kdt),
-    hasTwid: Boolean(twid),
-  };
-};
 
 type FetchTextResult = {
   status: number;
@@ -111,59 +60,6 @@ const fetchText = async (
   }
 };
 
-const buildGraphqlUrl = (count: number, cursor?: string): string => {
-  const url = new URL(`https://x.com${X_TIMELINE_PATH}`);
-
-  const variables: Record<string, unknown> = {
-    count,
-    includePromotedContent: false,
-    latestControlAvailable: true,
-    withCommunity: false,
-  };
-  if (cursor) variables.cursor = cursor;
-
-  const features: Record<string, boolean> = {
-    rweb_video_screen_enabled: false,
-    profile_label_improvements_pcf_label_in_post_enabled: true,
-    responsive_web_profile_redirect_enabled: false,
-    rweb_tipjar_consumption_enabled: true,
-    verified_phone_label_enabled: true,
-    creator_subscriptions_tweet_preview_api_enabled: true,
-    responsive_web_graphql_timeline_navigation_enabled: true,
-    responsive_web_graphql_skip_user_profile_image_extensions_enabled: false,
-    premium_content_api_read_enabled: false,
-    communities_web_enable_tweet_community_results_fetch: true,
-    c9s_tweet_anatomy_moderator_badge_enabled: true,
-    responsive_web_grok_analyze_button_fetch_trends_enabled: false,
-    responsive_web_grok_analyze_post_followups_enabled: true,
-    responsive_web_jetfuel_frame: true,
-    responsive_web_grok_share_attachment_enabled: true,
-    articles_preview_enabled: true,
-    responsive_web_edit_tweet_api_enabled: true,
-    graphql_is_translatable_rweb_tweet_is_translatable_enabled: true,
-    view_counts_everywhere_api_enabled: true,
-    longform_notetweets_consumption_enabled: true,
-    responsive_web_twitter_article_tweet_consumption_enabled: true,
-    tweet_awards_web_tipping_enabled: false,
-    responsive_web_grok_show_grok_translated_post: false,
-    responsive_web_grok_analysis_button_from_backend: true,
-    creator_subscriptions_quote_tweet_preview_enabled: false,
-    freedom_of_speech_not_reach_fetch_enabled: true,
-    standardized_nudges_misinfo: true,
-    tweet_with_visibility_results_prefer_gql_limited_actions_policy_enabled: true,
-    longform_notetweets_rich_text_read_enabled: true,
-    longform_notetweets_inline_media_enabled: true,
-    responsive_web_grok_image_annotation_enabled: true,
-    responsive_web_grok_imagine_annotation_enabled: true,
-    responsive_web_grok_community_note_auto_translation_is_enabled: false,
-    responsive_web_enhance_cards_enabled: false,
-  };
-
-  url.searchParams.set('variables', JSON.stringify(variables));
-  url.searchParams.set('features', JSON.stringify(features));
-
-  return url.toString();
-};
 
 export const fetchXHomeTimeline = async (
   options: XHomeTimelineOptions,
@@ -190,7 +86,7 @@ export const fetchXHomeTimeline = async (
 
   log?.('requesting x.com HTML');
   const docRes = await fetchText(
-    'https://x.com',
+    X_BASE_URL,
     {
       ...DEFAULT_HEADERS,
       Cookie: rawCookieHeader,

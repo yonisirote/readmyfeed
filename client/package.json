@@ -8,7 +8,6 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "fetch:cli": "tsx scripts/fetchHomeTimeline.ts",
     "test": "jest"
   },
   "dependencies": {
