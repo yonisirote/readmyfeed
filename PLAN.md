@@ -24,6 +24,14 @@
 - Android: `npm --prefix client run android`
 - Tests: `npm --prefix client test`
 
+## Next step: TTS playback
+
+- Add Expo Speech for text-to-speech playback.
+- Introduce a `client/src/services/tts/` helper for tweet narration.
+- Add Play All + Stop controls in the app UI with speaking state.
+- Auto-fetch the next timeline page when the queue runs out (count stays 5).
+- Resume within the current session only; no persistence on relaunch.
+
 ## APK builds
 
 - `client/eas.json` contains a `preview` profile that builds an APK.

@@ -15,6 +15,7 @@ import {
   View,
 } from 'react-native';
 
+import { buildTweetSpeechText, speakText, stopSpeech } from './src/services/tts/ttsService';
 import { fetchXHomeTimeline, type XHomeTimelineTweetSample } from './src/services/xHome/xHomeTimeline';
 
 const TWEET_COUNT = 5;
@@ -49,13 +50,179 @@ const truncateText = (text?: string, maxLen = 220) => {
   return `${text.slice(0, maxLen).trim()}…`;
 };
 
+const logTimeline = (message: string) => {
+  console.log(`[rmf] ${message}`);
+};
+
+const mergeTweetSamples = (
+  current: XHomeTimelineTweetSample[],
+  incoming: XHomeTimelineTweetSample[],
+): XHomeTimelineTweetSample[] => {
+  const seen = new Set(current.map((tweet) => tweet.id));
+  const merged = [...current];
+  for (const tweet of incoming) {
+    if (!tweet.id || seen.has(tweet.id)) {
+      continue;
+    }
+    merged.push(tweet);
+    seen.add(tweet.id);
+  }
+  return merged;
+};
+
 export default function App() {
   const [apiKey, setApiKey] = useState('');
   const [status, setStatus] = useState<FetchStatus>('idle');
   const [error, setError] = useState<string | null>(null);
   const [tweets, setTweets] = useState<XHomeTimelineTweetSample[]>([]);
   const [meta, setMeta] = useState<FetchMeta | null>(null);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [speechError, setSpeechError] = useState<string | null>(null);
+  const [isFetchingMore, setIsFetchingMore] = useState(false);
   const fadeAnim = useRef(new Animated.Value(1)).current;
+  const tweetsRef = useRef<XHomeTimelineTweetSample[]>([]);
+  const apiKeyRef = useRef<string | null>(null);
+  const nextCursorRef = useRef<string | undefined>(undefined);
+  const currentIndexRef = useRef(0);
+  const speechSessionRef = useRef(0);
+  const isFetchingMoreRef = useRef(false);
+
+  const setFetchingMoreState = (value: boolean) => {
+    isFetchingMoreRef.current = value;
+    setIsFetchingMore(value);
+  };
+
+  const updateCurrentIndex = (value: number) => {
+    currentIndexRef.current = value;
+    setCurrentIndex(value);
+  };
+
+  const endSpeechSession = (sessionId: number, resetIndex: boolean) => {
+    if (sessionId !== speechSessionRef.current) return;
+    setIsSpeaking(false);
+    setFetchingMoreState(false);
+    if (resetIndex) {
+      updateCurrentIndex(0);
+    }
+  };
+
+  const handleStopSpeech = () => {
+    if (!isSpeaking && !isFetchingMoreRef.current) {
+      return;
+    }
+    speechSessionRef.current += 1;
+    stopSpeech();
+    setIsSpeaking(false);
+    setFetchingMoreState(false);
+  };
+
+  function advanceSpeechQueue(index: number, sessionId: number) {
+    if (sessionId !== speechSessionRef.current) return;
+    const nextIndex = index + 1;
+    currentIndexRef.current = nextIndex;
+    const items = tweetsRef.current;
+    if (nextIndex < items.length) {
+      speakTweetAtIndex(nextIndex, sessionId);
+      return;
+    }
+    const nextCursor = nextCursorRef.current;
+    if (!nextCursor) {
+      endSpeechSession(sessionId, true);
+      return;
+    }
+    if (isFetchingMoreRef.current) {
+      return;
+    }
+    void fetchMoreTweets(nextCursor, sessionId);
+  }
+
+  function speakTweetAtIndex(index: number, sessionId: number) {
+    const tweet = tweetsRef.current[index];
+    if (!tweet) {
+      endSpeechSession(sessionId, true);
+      return;
+    }
+    const text = buildTweetSpeechText(tweet);
+    speakText(text, {
+      onStart: () => {
+        if (sessionId !== speechSessionRef.current) return;
+        updateCurrentIndex(index);
+      },
+      onDone: () => {
+        if (sessionId !== speechSessionRef.current) return;
+        advanceSpeechQueue(index, sessionId);
+      },
+      onStopped: () => {
+        if (sessionId !== speechSessionRef.current) return;
+        setIsSpeaking(false);
+      },
+      onError: (error) => {
+        if (sessionId !== speechSessionRef.current) return;
+        const message = error instanceof Error ? error.message : String(error);
+        setSpeechError(`Speech error: ${message}`);
+        endSpeechSession(sessionId, false);
+      },
+    });
+  }
+
+  async function fetchMoreTweets(cursor: string, sessionId: number) {
+    if (isFetchingMoreRef.current) return;
+    const apiKeyForFetch = apiKeyRef.current;
+    if (!apiKeyForFetch) {
+      setSpeechError('Missing API key for auto-fetch.');
+      endSpeechSession(sessionId, false);
+      return;
+    }
+    setFetchingMoreState(true);
+    setSpeechError(null);
+
+    try {
+      const result = await fetchXHomeTimeline({
+        apiKey: apiKeyForFetch,
+        count: TWEET_COUNT,
+        cursor,
+        log: logTimeline,
+      });
+
+      if (sessionId !== speechSessionRef.current) {
+        return;
+      }
+
+      const previousCount = tweetsRef.current.length;
+      const merged = mergeTweetSamples(tweetsRef.current, result.tweetSamples);
+      tweetsRef.current = merged;
+      nextCursorRef.current = result.nextCursor;
+      setTweets(merged);
+      setMeta({
+        entriesCount: result.entriesCount,
+        tweetsCount: result.tweetsCount,
+        nextCursor: result.nextCursor,
+      });
+
+      if (merged.length === previousCount) {
+        setSpeechError('No additional tweets returned.');
+        endSpeechSession(sessionId, false);
+        return;
+      }
+
+      const nextIndex = currentIndexRef.current;
+      if (nextIndex < merged.length) {
+        speakTweetAtIndex(nextIndex, sessionId);
+      } else {
+        endSpeechSession(sessionId, true);
+      }
+    } catch (err) {
+      if (sessionId !== speechSessionRef.current) {
+        return;
+      }
+      const message = err instanceof Error ? err.message : String(err);
+      setSpeechError(`Auto-fetch failed: ${message}`);
+      endSpeechSession(sessionId, false);
+    } finally {
+      setFetchingMoreState(false);
+    }
+  }
 
   const handleFetch = async () => {
     const trimmedKey = apiKey.trim();
@@ -64,6 +231,16 @@ export default function App() {
       setStatus('error');
       return;
     }
+
+    speechSessionRef.current += 1;
+    stopSpeech();
+    setIsSpeaking(false);
+    setFetchingMoreState(false);
+    setSpeechError(null);
+    updateCurrentIndex(0);
+    tweetsRef.current = [];
+    nextCursorRef.current = undefined;
+    apiKeyRef.current = trimmedKey;
 
     setStatus('loading');
     setError(null);
@@ -75,11 +252,11 @@ export default function App() {
       const result = await fetchXHomeTimeline({
         apiKey: trimmedKey,
         count: TWEET_COUNT,
-        log: (message) => {
-          console.log(`[rmf] ${message}`);
-        },
+        log: logTimeline,
       });
 
+      tweetsRef.current = result.tweetSamples;
+      nextCursorRef.current = result.nextCursor;
       setTweets(result.tweetSamples);
       setMeta({
         entriesCount: result.entriesCount,
@@ -101,8 +278,29 @@ export default function App() {
     }
   };
 
+  const handlePlayAll = () => {
+    const items = tweetsRef.current;
+    if (status === 'loading' || items.length === 0 || isSpeaking) {
+      return;
+    }
+    setSpeechError(null);
+    stopSpeech();
+    setFetchingMoreState(false);
+
+    const sessionId = speechSessionRef.current + 1;
+    speechSessionRef.current = sessionId;
+    setIsSpeaking(true);
+
+    const startIndex = Math.max(0, Math.min(currentIndexRef.current, items.length - 1));
+    currentIndexRef.current = startIndex;
+    speakTweetAtIndex(startIndex, sessionId);
+  };
+
   const hasTweets = tweets.length > 0;
   const statusText = status === 'loading' ? 'Fetching from X...' : status === 'ready' ? 'Timeline loaded' : 'Idle';
+  const canPlay = hasTweets && !isSpeaking && status !== 'loading';
+  const canStop = isSpeaking || isFetchingMore;
+  const spokenIndexLabel = hasTweets ? Math.min(currentIndex + 1, tweets.length) : 0;
 
   return (
     <LinearGradient colors={['#f2d8c4', '#e7eef8']} style={styles.background}>
@@ -158,6 +356,45 @@ export default function App() {
                 <Text style={styles.statusText}>{statusText}</Text>
               </View>
             </View>
+
+            <View style={styles.ttsRow}>
+              <Pressable
+                onPress={handlePlayAll}
+                style={({ pressed }) => [
+                  styles.ttsButton,
+                  styles.ttsButtonPrimary,
+                  !canPlay && styles.ttsButtonDisabled,
+                  pressed && canPlay && styles.ttsButtonPressedPrimary,
+                ]}
+                disabled={!canPlay}
+              >
+                <Text style={styles.ttsButtonText}>Play all</Text>
+              </Pressable>
+              <Pressable
+                onPress={handleStopSpeech}
+                style={({ pressed }) => [
+                  styles.ttsButton,
+                  styles.ttsButtonSecondary,
+                  !canStop && styles.ttsButtonDisabled,
+                  pressed && canStop && styles.ttsButtonPressedSecondary,
+                ]}
+                disabled={!canStop}
+              >
+                <Text style={styles.ttsButtonTextSecondary}>Stop</Text>
+              </Pressable>
+            </View>
+
+            {hasTweets ? (
+              <Text style={styles.ttsStatus}>
+                {isSpeaking
+                  ? `Reading ${spokenIndexLabel} of ${tweets.length}`
+                  : `Ready to read ${tweets.length} tweets`}
+              </Text>
+            ) : null}
+
+            {isFetchingMore ? <Text style={styles.ttsStatus}>Fetching more tweets...</Text> : null}
+
+            {speechError ? <Text style={styles.errorText}>{speechError}</Text> : null}
 
             {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
@@ -289,6 +526,50 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 15,
     fontFamily: 'sans-serif-medium',
+  },
+  ttsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  ttsButton: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  ttsButtonPrimary: {
+    backgroundColor: theme.accent,
+  },
+  ttsButtonSecondary: {
+    backgroundColor: theme.surfaceMuted,
+    borderColor: theme.border,
+  },
+  ttsButtonDisabled: {
+    opacity: 0.55,
+  },
+  ttsButtonPressedPrimary: {
+    backgroundColor: theme.accentStrong,
+  },
+  ttsButtonPressedSecondary: {
+    backgroundColor: theme.surface,
+  },
+  ttsButtonText: {
+    color: 'white',
+    fontSize: 14,
+    fontFamily: 'sans-serif-medium',
+  },
+  ttsButtonTextSecondary: {
+    color: theme.inkSoft,
+    fontSize: 14,
+    fontFamily: 'sans-serif-medium',
+  },
+  ttsStatus: {
+    fontSize: 12,
+    color: theme.inkSoft,
   },
   statusPill: {
     flexDirection: 'row',

@@ -7,13 +7,21 @@ It is intended to help autonomous coding agents make safe, consistent changes.
 
 - Root contains documentation and top-level scripts.
 - `client/` is an Expo (React Native) app and the only active package.
+- `client/src/services/xHome/` owns the X home timeline fetch flow.
 - There is no server package in the main branch; fetching happens client-side.
+
+### Key paths
+
+- `client/App.tsx`: Expo entry point and UI shell.
+- `client/src/services/xHome/`: Timeline fetcher, parsing, and config helpers.
+- `client/src/types/`: Custom module declarations (e.g. `base-64`).
 
 ## Setup
 
 - Install deps (client): `npm --prefix client install`
 - Environment:
-  - Root `.env` is optional; API keys are entered in the app UI when testing fetches.
+  - Root `.env` is optional; API keys are entered in the app UI.
+  - Never commit secrets (API keys, cookies, credentials JSON).
 
 ## Build / run / test
 
@@ -24,76 +32,114 @@ All of these commands are run from the repo root unless noted.
 - Start Expo dev server: `npm --prefix client run start`
 - Android: `npm --prefix client run android`
 - iOS: `npm --prefix client run ios`
+- Web preview: `npm --prefix client run web`
 
 ### Tests
 
-- Jest tests: `npm --prefix client test`
+- Run all tests: `npm --prefix client test`
+- Run a single test file:
+  - `npm --prefix client test -- xHome/xTimelineParsing.test.ts`
+- Run a single test name:
+  - `npm --prefix client test -- -t "parses entries"`
 
-## Build / lint / typecheck
+### Build / lint / typecheck
 
-No ESLint/Prettier configuration is currently present in the repo.
-
-If you introduce a lint/format tool as part of a change request, keep it scoped and consistent with existing style; do not reformat unrelated files.
+- No ESLint/Prettier configuration is present.
+- No dedicated typecheck script is present; TypeScript is `strict: true`.
+- APK build (EAS, from `client/`): `npx eas build -p android --profile preview`
+- If you introduce linting or formatting tooling, keep it scoped and avoid
+  reformatting unrelated files.
 
 ## TypeScript / module system
 
-- TypeScript is `strict: true` (`client/tsconfig.json`). Keep new code strict.
-- For React Native/Metro, prefer extensionless local imports (no `.js`).
+- TypeScript is `strict: true` (`client/tsconfig.json`).
+- For React Native/Metro, keep extensionless local imports.
+- Use `import type` for type-only imports.
+- Shared types for the X timeline flow live in `client/src/services/xHome/xHomeTypes.ts`.
 
 ## Code style guidelines
 
 ### Imports
 
 - Group imports with a blank line between:
-  1. External packages (e.g. `express`, `cors`)
+  1. External packages
   2. Internal modules (relative imports)
-- Use `import type` for type-only imports.
-- Keep import paths consistent with ESM (`.js` extensions).
+- Keep import order stable within groups.
+- Prefer local relative imports for app modules.
 
 ### Formatting
 
-- Current codebase style:
-  - 2 spaces indentation
-  - single quotes
-  - trailing commas in multiline objects
-  - semicolons
-  - blank line between import groups and logical blocks
-- Match existing local formatting in a file; avoid drive-by whitespace changes.
+- Indentation: 2 spaces.
+- Quotes: single quotes.
+- Semicolons: required.
+- Trailing commas in multiline objects and arrays.
+- Blank line between import groups and logical blocks.
+- Avoid drive-by whitespace or reformat-only changes.
 
 ### Types
 
 - Prefer explicit return types on exported functions.
-- Keep types close to the domain (e.g. `FeedTweet`, `FeedResult` in `services/twitter.ts`).
-- Avoid `any` unless you are bridging external/unknown library data; if you must
-  use `any`, convert/validate at the boundary (e.g. `toFeedTweet(item: any)`).
+- Use type aliases for domain shapes (`XHomeTimelineResult`, etc.).
+- Avoid `any` unless bridging external data; validate at the boundary.
+- Add new module declarations under `client/src/types/` when needed.
 
 ### Naming conventions
 
-- Files: `camelCase.ts` for utilities and services (matches current repo).
-- Exports:
-  - `camelCase` for functions/values (`getFeed`, `getFollowedFeed`).
-  - `PascalCase` for types (`FeedTweet`).
-  - `SCREAMING_SNAKE_CASE` for constants.
-- Boolean names: `hasMore`, `isEnabled`, etc.
+- Files: `camelCase.ts` for utilities/services; `*.test.ts` for tests.
+- Folders: `camelCase` (e.g. `xHome`).
+- Functions/values: `camelCase`.
+- Types: `PascalCase`.
+- Constants: `SCREAMING_SNAKE_CASE` (e.g. `X_HOME_CONFIG`).
+- Boolean names: `hasMore`, `isEnabled`, `shouldFetch`, etc.
 
 ### Error handling
 
-- Prefer `try/catch` around fetch boundaries and surface readable errors.
-- Do not log secrets (API keys, cookies).
+- Use `try/catch` around fetch boundaries and JSON parsing.
+- Throw readable errors with concise context.
+- Do not log secrets (API keys, cookies, auth headers).
+- Use `error instanceof Error ? error.message : String(error)`.
 
 ### Logging
 
 - Use concise, grep-friendly logs with a module prefix (e.g. `[rmf]`).
+- Avoid logging entire payloads from X.
+
+### Networking
+
+- Use the Expo FileSystem download path for requests requiring cookie headers.
+- Keep request constants in `X_HOME_CONFIG` and reuse helpers for URLs/cookies.
 
 ### Pagination contract
 
-- `fetchXHomeTimeline` returns tweet samples, `nextCursor`, and `hasMore` state.
+- `fetchXHomeTimeline` returns `entriesCount`, `tweetsCount`, `nextCursor`,
+  and `tweetSamples`.
+- Clients should de-dupe tweets by `id` across pages.
+
+### React Native UI
+
+- Preserve the existing theme/typography choices in `client/App.tsx`.
+- Prefer `StyleSheet.create` for styles over inline objects.
+
+### Testing notes
+
+- Jest tests live next to the source in `client/src/services/xHome/`.
+- Prefer focused unit tests for parsing and extraction logic.
+- Keep fixtures minimal; avoid logging full payloads in tests.
+
+## Dependency changes
+
+- Update `client/package.json` and `client/package-lock.json` together.
+- Avoid adding dependencies unless needed for the requested change.
+- Keep Expo/React Native versions aligned with existing constraints.
 
 ## Cursor / Copilot rules
 
-- No `.cursor/rules/`, `.cursorrules`, or `.github/copilot-instructions.md` were found in this repo.
+- No `.cursor/rules/`, `.cursorrules`, or `.github/copilot-instructions.md`
+  were found in this repo.
 
 ## Quick checklist for changes
 
 - Keep TypeScript strict and tests passing (`npm --prefix client test`).
+- Update docs when behavior or commands change.
+- Update `client/package-lock.json` when dependencies change.
 - Avoid reformatting unrelated files.
