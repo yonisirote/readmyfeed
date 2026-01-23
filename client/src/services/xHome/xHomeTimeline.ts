@@ -1,30 +1,26 @@
 import ClientTransaction from 'x-client-transaction-id';
 import * as FileSystem from 'expo-file-system';
 
-import { decodeApiKeyToCookies } from './xHome/xHomeCookies';
-import {
-  DEFAULT_BEARER_TOKEN,
-  DEFAULT_HEADERS,
-  X_BASE_URL,
-  X_TIMELINE_PATH,
-} from './xHome/xHomeConfig';
-import { buildGraphqlUrl } from './xHome/xHomeTimelineUrl';
+import { decodeApiKeyToCookies } from './xHomeCookies';
+import { X_HOME_CONFIG } from './xHomeConfig';
+import { buildGraphqlUrl } from './xHomeTimelineUrl';
 import type { XHomeTimelineOptions, XHomeTimelineResult } from './xHomeTypes';
 import { parseTimeline, toTweetSample } from './xTimelineParsing';
 
 export type { XHomeTimelineTweetSample } from './xHomeTypes';
 
+// Trim large responses before logging error details.
 const safeBodyPrefix = (text: string, maxLen = 800): string => {
   const cleaned = text.replaceAll(/\s+/g, ' ').trim();
   return cleaned.slice(0, maxLen);
 };
-
 
 type FetchTextResult = {
   status: number;
   text: string;
 };
 
+// Fetch raw text using Expo FileSystem to preserve cookie headers on device.
 const fetchText = async (
   url: string,
   headers: Record<string, string>,
@@ -64,10 +60,14 @@ const fetchText = async (
 export const fetchXHomeTimeline = async (
   options: XHomeTimelineOptions,
 ): Promise<XHomeTimelineResult> => {
+  // Orchestrate the HTML probe + GraphQL timeline fetch.
   const apiKey = options.apiKey.trim();
   const count = options.count;
   const cursor = options.cursor;
   const log = options.log;
+
+  const { baseUrl, defaultBearerToken, defaultHeaders, timelinePath } =
+    X_HOME_CONFIG;
 
   if (!apiKey) {
     throw new Error('Missing API key.');
@@ -86,9 +86,9 @@ export const fetchXHomeTimeline = async (
 
   log?.('requesting x.com HTML');
   const docRes = await fetchText(
-    X_BASE_URL,
+    baseUrl,
     {
-      ...DEFAULT_HEADERS,
+      ...defaultHeaders,
       Cookie: rawCookieHeader,
     },
     log,
@@ -106,11 +106,12 @@ export const fetchXHomeTimeline = async (
   const parser = new DOMParser();
   const doc = parser.parseFromString(docHtml, 'text/html');
 
-  const bearer = DEFAULT_BEARER_TOKEN;
+  const bearer = defaultBearerToken;
 
+  // X expects a client transaction id generated from the HTML payload.
   log?.('generating x-client-transaction-id');
   const tx = await ClientTransaction.create(doc);
-  const transactionId = await tx.generateTransactionId('GET', X_TIMELINE_PATH);
+  const transactionId = await tx.generateTransactionId('GET', timelinePath);
 
   const url = buildGraphqlUrl(count, cursor);
   log?.(`requesting timeline ${cursor ? 'cursor=set' : 'cursor=none'}`);
@@ -118,7 +119,7 @@ export const fetchXHomeTimeline = async (
   const timelineRes = await fetchText(
     url,
     {
-      ...DEFAULT_HEADERS,
+      ...defaultHeaders,
       ...(csrfToken ? { 'x-csrf-token': csrfToken } : {}),
       'x-client-transaction-id': transactionId,
       authorization: `Bearer ${bearer}`,

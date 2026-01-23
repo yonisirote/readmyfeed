@@ -6,6 +6,7 @@ export type ParsedCookies = {
   hasTwid: boolean;
 };
 
+// Convert the encoded API key into a cookie header + metadata.
 export const decodeApiKeyToCookies = (key: string): ParsedCookies => {
   const decoded = atob(key.trim());
   const cookiePairs = decoded.split(';');

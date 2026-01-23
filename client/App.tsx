@@ -15,7 +15,7 @@ import {
   View,
 } from 'react-native';
 
-import { fetchXHomeTimeline, type XHomeTimelineTweetSample } from './src/services/xHomeTimeline';
+import { fetchXHomeTimeline, type XHomeTimelineTweetSample } from './src/services/xHome/xHomeTimeline';
 
 const TWEET_COUNT = 5;
 

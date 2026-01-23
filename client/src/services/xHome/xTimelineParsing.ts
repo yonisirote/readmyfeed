@@ -1,4 +1,4 @@
-import type { XHomeTimelineTweetSample } from "./xHomeTypes";
+import type { XHomeTimelineTweetSample } from './xHomeTypes';
 
 export type TimelineParseResult = {
   entries: any[];
@@ -6,13 +6,15 @@ export type TimelineParseResult = {
   tweetEntries: any[];
 };
 
+// Normalize and trim tweet text for display.
 const safeBodyPrefix = (text: string, maxLen = 800): string => {
-  const cleaned = text.replaceAll(/\s+/g, " ").trim();
+  const cleaned = text.replaceAll(/\s+/g, ' ').trim();
   return cleaned.slice(0, maxLen);
 };
 
+// Extract entries and cursor metadata from a timeline payload.
 export const parseTimeline = (data: unknown): TimelineParseResult => {
-  if (!data || typeof data !== "object") {
+  if (!data || typeof data !== 'object') {
     return { entries: [], tweetEntries: [] };
   }
 
@@ -23,13 +25,13 @@ export const parseTimeline = (data: unknown): TimelineParseResult => {
 
   const entries: any[] = [];
   for (const inst of instructions) {
-    if (inst?.type === "TimelineAddEntries" && Array.isArray(inst.entries)) {
+    if (inst?.type === 'TimelineAddEntries' && Array.isArray(inst.entries)) {
       entries.push(...inst.entries);
     }
   }
 
   const cursorEntry = entries.find((e) =>
-    String(e?.entryId ?? "").startsWith("cursor-bottom"),
+    String(e?.entryId ?? '').startsWith('cursor-bottom'),
   );
   const next =
     cursorEntry?.content?.value ?? cursorEntry?.content?.itemContent?.value;
@@ -39,11 +41,12 @@ export const parseTimeline = (data: unknown): TimelineParseResult => {
   );
   return {
     entries,
-    nextCursor: typeof next === "string" ? next : undefined,
+    nextCursor: typeof next === 'string' ? next : undefined,
     tweetEntries,
   };
 };
 
+// Unwrap visibility wrappers around tweet results.
 const unwrapTweetResult = (result: any): any | undefined => {
   if (!result) return undefined;
   if (result.tweet) return result.tweet;
@@ -51,6 +54,7 @@ const unwrapTweetResult = (result: any): any | undefined => {
   return result;
 };
 
+// Pull a screen name from the most likely user payloads.
 const resolveUserHandle = (tweetResult: any): string | undefined => {
   const userResult = tweetResult?.core?.user_results?.result;
   const legacy =
@@ -64,9 +68,10 @@ const resolveUserHandle = (tweetResult: any): string | undefined => {
     userResult?.legacy?.screen_name ??
     tweetResult?.core?.user_results?.legacy?.screen_name;
 
-  return typeof candidate === "string" ? candidate : undefined;
+  return typeof candidate === 'string' ? candidate : undefined;
 };
 
+// Map the API tweet payload into the UI sample shape.
 export const toTweetSample = (tweetResult: any): XHomeTimelineTweetSample => {
   const resolved = unwrapTweetResult(tweetResult);
   const retweeted = unwrapTweetResult(
@@ -74,7 +79,7 @@ export const toTweetSample = (tweetResult: any): XHomeTimelineTweetSample => {
   );
   const base = resolved ?? retweeted;
 
-  const id = String(base?.rest_id ?? "");
+  const id = String(base?.rest_id ?? '');
   const user = resolveUserHandle(base) ?? resolveUserHandle(retweeted);
   const text =
     base?.legacy?.full_text ??
@@ -84,7 +89,7 @@ export const toTweetSample = (tweetResult: any): XHomeTimelineTweetSample => {
 
   return {
     id,
-    user: typeof user === "string" ? user : undefined,
-    text: typeof text === "string" ? safeBodyPrefix(text, 160) : undefined,
+    user: typeof user === 'string' ? user : undefined,
+    text: typeof text === 'string' ? safeBodyPrefix(text, 160) : undefined,
   };
 };
