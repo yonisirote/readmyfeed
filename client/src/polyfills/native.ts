@@ -1,36 +1,46 @@
-import 'fast-text-encoding';
-import 'react-native-get-random-values';
-import 'react-native-url-polyfill/auto';
+import "fast-text-encoding";
+import "react-native-get-random-values";
+import "react-native-url-polyfill/auto";
 
-import { decode as atob, encode as btoa } from 'base-64';
-import { Crypto } from 'expo-standard-web-crypto';
-import { sha256 } from 'js-sha256';
-import { DOMParser } from 'linkedom';
+import { decode as atob, encode as btoa } from "base-64";
+import webCrypto, { polyfillWebCrypto } from "expo-standard-web-crypto";
+import { sha256 } from "js-sha256";
+import { DOMParser } from "linkedom";
 
 type CryptoSubtle = {
-  digest: (algorithm: string, data: ArrayBuffer | ArrayBufferView) => Promise<ArrayBuffer>;
+  digest: (
+    algorithm: string,
+    data: ArrayBuffer | ArrayBufferView,
+  ) => Promise<ArrayBuffer>;
 };
 
-type GlobalWithPolyfills = typeof globalThis & {
-  crypto?: Crypto & { subtle?: CryptoSubtle };
+type CryptoLike = typeof webCrypto & { subtle?: CryptoSubtle };
+
+type GlobalWithPolyfills = Omit<typeof globalThis, "crypto"> & {
+  crypto?: CryptoLike;
   atob?: (input: string) => string;
   btoa?: (input: string) => string;
-  DOMParser?: typeof DOMParser;
-  window?: typeof globalThis;
+  DOMParser?: typeof globalThis.DOMParser;
 };
 
 const globalRef = globalThis as GlobalWithPolyfills;
 
+try {
+  polyfillWebCrypto();
+} catch {
+  // Ignore if already applied or unsupported in this runtime.
+}
+
 if (!globalRef.crypto) {
-  globalRef.crypto = new Crypto();
+  globalRef.crypto = webCrypto as unknown as CryptoLike;
 }
 
 if (!globalRef.crypto?.subtle) {
-  const cryptoRef = globalRef.crypto as Crypto & { subtle?: CryptoSubtle };
+  const cryptoRef = globalRef.crypto as CryptoLike;
   cryptoRef.subtle = {
     async digest(algorithm: string, data: ArrayBuffer | ArrayBufferView) {
       const normalized = algorithm.toUpperCase();
-      if (normalized !== 'SHA-256') {
+      if (normalized !== "SHA-256") {
         throw new Error(`Unsupported digest algorithm: ${algorithm}`);
       }
 
@@ -52,11 +62,11 @@ if (!globalRef.btoa) {
 }
 
 if (!globalRef.DOMParser) {
-  globalRef.DOMParser = DOMParser;
+  globalRef.DOMParser = DOMParser as unknown as typeof globalThis.DOMParser;
 }
 
-if (typeof ArrayBuffer !== 'undefined' && !ArrayBuffer.prototype.transfer) {
-  Object.defineProperty(ArrayBuffer.prototype, 'transfer', {
+if (typeof ArrayBuffer !== "undefined" && !ArrayBuffer.prototype.transfer) {
+  Object.defineProperty(ArrayBuffer.prototype, "transfer", {
     value(newLength: number) {
       const source = new Uint8Array(this);
       const target = new Uint8Array(new ArrayBuffer(newLength));
@@ -68,6 +78,10 @@ if (typeof ArrayBuffer !== 'undefined' && !ArrayBuffer.prototype.transfer) {
   });
 }
 
-if (!globalRef.window) {
-  globalRef.window = globalRef;
+const globalWithWindow = globalThis as Omit<typeof globalThis, "window"> & {
+  window?: typeof globalThis;
+};
+
+if (!globalWithWindow.window) {
+  globalWithWindow.window = globalThis;
 }

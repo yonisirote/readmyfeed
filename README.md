@@ -6,7 +6,7 @@ Read your X/Twitter home feed out loud.
 
 - Expo app for fetching the X/Twitter home timeline
 - Basic feed preview UI (API key input + tweets list)
-- CLI fetch script for quick verification
+- Mobile-first networking with Expo FileSystem to preserve cookie headers
 
 ## Getting Started
 
@@ -44,28 +44,17 @@ npm run start
 
 Open the app on a device/simulator, paste your API key, and fetch the first page.
 
-### 4. CLI fetch (no device required)
+Note: The CLI fetch script was removed when the fetcher switched to Expo-only networking.
+Use the app (device or emulator) to verify fetches.
 
-```bash
-cd client
-API_KEY=your_api_key_here npm run fetch:cli
-```
-
-Or pass the key directly:
-
-```bash
-cd client
-npm run fetch:cli -- --api-key "your_api_key_here"
-```
-
-### 5. Run tests
+### 4. Run tests
 
 ```bash
 cd client
 npm test
 ```
 
-### 6. Build an APK (EAS)
+### 5. Build an APK (EAS)
 
 ```bash
 cd client

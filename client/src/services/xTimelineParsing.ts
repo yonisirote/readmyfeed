@@ -1,4 +1,4 @@
-import type { XHomeTimelineTweetSample } from './xHomeTypes';
+import type { XHomeTimelineTweetSample } from "./xHomeTypes";
 
 export type TimelineParseResult = {
   entries: any[];
@@ -7,30 +7,41 @@ export type TimelineParseResult = {
 };
 
 const safeBodyPrefix = (text: string, maxLen = 800): string => {
-  const cleaned = text.replaceAll(/\s+/g, ' ').trim();
+  const cleaned = text.replaceAll(/\s+/g, " ").trim();
   return cleaned.slice(0, maxLen);
 };
 
 export const parseTimeline = (data: unknown): TimelineParseResult => {
-  if (!data || typeof data !== 'object') {
+  if (!data || typeof data !== "object") {
     return { entries: [], tweetEntries: [] };
   }
 
   const instructions: any[] =
-    (data as any)?.data?.home?.home_timeline_urt?.instructions ?? (data as any)?.data?.home?.timeline?.instructions ?? [];
+    (data as any)?.data?.home?.home_timeline_urt?.instructions ??
+    (data as any)?.data?.home?.timeline?.instructions ??
+    [];
 
   const entries: any[] = [];
   for (const inst of instructions) {
-    if (inst?.type === 'TimelineAddEntries' && Array.isArray(inst.entries)) {
+    if (inst?.type === "TimelineAddEntries" && Array.isArray(inst.entries)) {
       entries.push(...inst.entries);
     }
   }
 
-  const cursorEntry = entries.find((e) => String(e?.entryId ?? '').startsWith('cursor-bottom'));
-  const next = cursorEntry?.content?.value ?? cursorEntry?.content?.itemContent?.value;
+  const cursorEntry = entries.find((e) =>
+    String(e?.entryId ?? "").startsWith("cursor-bottom"),
+  );
+  const next =
+    cursorEntry?.content?.value ?? cursorEntry?.content?.itemContent?.value;
 
-  const tweetEntries = entries.filter((e) => e?.content?.itemContent?.tweet_results);
-  return { entries, nextCursor: typeof next === 'string' ? next : undefined, tweetEntries };
+  const tweetEntries = entries.filter(
+    (e) => e?.content?.itemContent?.tweet_results,
+  );
+  return {
+    entries,
+    nextCursor: typeof next === "string" ? next : undefined,
+    tweetEntries,
+  };
 };
 
 const unwrapTweetResult = (result: any): any | undefined => {
@@ -40,9 +51,12 @@ const unwrapTweetResult = (result: any): any | undefined => {
   return result;
 };
 
-const resolveUserScreenName = (tweetResult: any): string | undefined => {
+const resolveUserHandle = (tweetResult: any): string | undefined => {
   const userResult = tweetResult?.core?.user_results?.result;
-  const legacy = userResult?.legacy ?? userResult?.result?.legacy ?? userResult?.user?.legacy;
+  const legacy =
+    userResult?.legacy ??
+    userResult?.result?.legacy ??
+    userResult?.user?.legacy;
   const candidate =
     userResult?.core?.screen_name ??
     legacy?.screen_name ??
@@ -50,16 +64,18 @@ const resolveUserScreenName = (tweetResult: any): string | undefined => {
     userResult?.legacy?.screen_name ??
     tweetResult?.core?.user_results?.legacy?.screen_name;
 
-  return typeof candidate === 'string' ? candidate : undefined;
+  return typeof candidate === "string" ? candidate : undefined;
 };
 
 export const toTweetSample = (tweetResult: any): XHomeTimelineTweetSample => {
   const resolved = unwrapTweetResult(tweetResult);
-  const retweeted = unwrapTweetResult(resolved?.legacy?.retweeted_status_result?.result);
+  const retweeted = unwrapTweetResult(
+    resolved?.legacy?.retweeted_status_result?.result,
+  );
   const base = resolved ?? retweeted;
 
-  const id = String(base?.rest_id ?? '');
-  const user = resolveUserScreenName(base) ?? resolveUserScreenName(retweeted);
+  const id = String(base?.rest_id ?? "");
+  const user = resolveUserHandle(base) ?? resolveUserHandle(retweeted);
   const text =
     base?.legacy?.full_text ??
     base?.legacy?.text ??
@@ -68,7 +84,7 @@ export const toTweetSample = (tweetResult: any): XHomeTimelineTweetSample => {
 
   return {
     id,
-    user: typeof user === 'string' ? user : undefined,
-    text: typeof text === 'string' ? safeBodyPrefix(text, 160) : undefined,
+    user: typeof user === "string" ? user : undefined,
+    text: typeof text === "string" ? safeBodyPrefix(text, 160) : undefined,
   };
 };

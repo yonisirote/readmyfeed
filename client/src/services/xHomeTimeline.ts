@@ -1,4 +1,5 @@
 import ClientTransaction from 'x-client-transaction-id';
+import * as FileSystem from 'expo-file-system';
 
 import { parseTimeline, toTweetSample } from './xTimelineParsing';
 import type { XHomeTimelineOptions, XHomeTimelineResult } from './xHomeTypes';
@@ -13,7 +14,8 @@ type ParsedCookies = {
   hasTwid: boolean;
 };
 
-const X_TIMELINE_PATH = '/i/api/graphql/_qO7FJzShSKYWi9gtboE6A/HomeLatestTimeline';
+const X_TIMELINE_PATH =
+  '/i/api/graphql/_qO7FJzShSKYWi9gtboE6A/HomeLatestTimeline';
 
 const DEFAULT_BEARER_TOKEN =
   'AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA';
@@ -23,7 +25,8 @@ const DEFAULT_HEADERS: Record<string, string> = {
   'Accept-Language': 'en-US,en;q=0.9',
   'Cache-Control': 'no-cache',
   Referer: 'https://x.com',
-  'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64; rv:144.0) Gecko/20100101 Firefox/144.0',
+  'User-Agent':
+    'Mozilla/5.0 (X11; Linux x86_64; rv:144.0) Gecko/20100101 Firefox/144.0',
   'X-Twitter-Active-User': 'yes',
   'X-Twitter-Client-Language': 'en',
 };
@@ -68,70 +71,45 @@ const decodeApiKeyToCookies = (key: string): ParsedCookies => {
   };
 };
 
-
 type FetchTextResult = {
   status: number;
   text: string;
 };
 
-const isReactNative = typeof navigator !== 'undefined' && navigator.product === 'ReactNative';
-
 const fetchText = async (
   url: string,
   headers: Record<string, string>,
-  timeoutMs: number,
   log?: (message: string) => void,
 ): Promise<FetchTextResult> => {
   try {
-    if (isReactNative) {
-      const FileSystem = await import('expo-file-system');
-      const baseDir = FileSystem.cacheDirectory ?? FileSystem.documentDirectory;
-      if (!baseDir) {
-        throw new Error('Missing Expo file system directory.');
-      }
-
-      const tempUri = `${baseDir}rmf-${Date.now()}-${Math.random().toString(16).slice(2)}.txt`;
-      let status = 0;
-      let text = '';
-
-      try {
-        const res = await FileSystem.downloadAsync(url, tempUri, { headers });
-        status = res.status ?? 0;
-        text = await FileSystem.readAsStringAsync(res.uri);
-      } finally {
-        await FileSystem.deleteAsync(tempUri, { idempotent: true });
-      }
-
-      if (status >= 400) {
-        const body = safeBodyPrefix(text);
-        log?.(`fetch failed status=${status} url=${url} body=${body}`);
-      }
-
-      return { status, text };
+    const baseDir = FileSystem.cacheDirectory ?? FileSystem.documentDirectory;
+    if (!baseDir) {
+      throw new Error('Missing Expo file system directory.');
     }
 
-    const { default: axios } = await import('axios');
-    const response = await axios.get(url, {
-      headers,
-      timeout: timeoutMs,
-      responseType: 'text',
-      transformResponse: (data) => data,
-      validateStatus: () => true,
-    });
+    const tempUri = `${baseDir}rmf-${Date.now()}-${Math.random().toString(16).slice(2)}.txt`;
+    let status = 0;
+    let text = '';
 
-    const text = typeof response.data === 'string' ? response.data : JSON.stringify(response.data ?? {});
-    if (response.status >= 400) {
+    try {
+      const res = await FileSystem.downloadAsync(url, tempUri, { headers });
+      status = res.status ?? 0;
+      text = await FileSystem.readAsStringAsync(res.uri);
+    } finally {
+      await FileSystem.deleteAsync(tempUri, { idempotent: true });
+    }
+
+    if (status >= 400) {
       const body = safeBodyPrefix(text);
-      log?.(`fetch failed status=${response.status} url=${url} body=${body}`);
+      log?.(`fetch failed status=${status} url=${url} body=${body}`);
     }
 
-    return { status: response.status, text };
+    return { status, text };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     throw new Error(`Request failed url=${url} error=${message}`);
   }
 };
-
 
 const buildGraphqlUrl = (count: number, cursor?: string): string => {
   const url = new URL(`https://x.com${X_TIMELINE_PATH}`);
@@ -187,7 +165,9 @@ const buildGraphqlUrl = (count: number, cursor?: string): string => {
   return url.toString();
 };
 
-export const fetchXHomeTimeline = async (options: XHomeTimelineOptions): Promise<XHomeTimelineResult> => {
+export const fetchXHomeTimeline = async (
+  options: XHomeTimelineOptions,
+): Promise<XHomeTimelineResult> => {
   const apiKey = options.apiKey.trim();
   const count = options.count;
   const cursor = options.cursor;
@@ -201,9 +181,12 @@ export const fetchXHomeTimeline = async (options: XHomeTimelineOptions): Promise
     throw new Error('DOMParser is not available. Ensure polyfills are loaded.');
   }
 
-  const { rawCookieHeader, csrfToken, hasAuthToken, hasKdt, hasTwid } = decodeApiKeyToCookies(apiKey);
+  const { rawCookieHeader, csrfToken, hasAuthToken, hasKdt, hasTwid } =
+    decodeApiKeyToCookies(apiKey);
 
-  log?.(`cookie parts auth=${hasAuthToken} kdt=${hasKdt} twid=${hasTwid} csrf=${Boolean(csrfToken)}`);
+  log?.(
+    `cookie parts auth=${hasAuthToken} kdt=${hasKdt} twid=${hasTwid} csrf=${Boolean(csrfToken)}`,
+  );
 
   log?.('requesting x.com HTML');
   const docRes = await fetchText(
@@ -212,7 +195,6 @@ export const fetchXHomeTimeline = async (options: XHomeTimelineOptions): Promise
       ...DEFAULT_HEADERS,
       Cookie: rawCookieHeader,
     },
-    15000,
     log,
   );
 
@@ -246,13 +228,14 @@ export const fetchXHomeTimeline = async (options: XHomeTimelineOptions): Promise
       authorization: `Bearer ${bearer}`,
       Cookie: rawCookieHeader,
     },
-    15000,
     log,
   );
 
   const bodyText = timelineRes.text;
   if (timelineRes.status !== 200) {
-    throw new Error(`Timeline request failed status=${timelineRes.status} bodyPrefix=${safeBodyPrefix(bodyText)}`);
+    throw new Error(
+      `Timeline request failed status=${timelineRes.status} bodyPrefix=${safeBodyPrefix(bodyText)}`,
+    );
   }
 
   let data: unknown;

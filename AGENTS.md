@@ -13,7 +13,7 @@ It is intended to help autonomous coding agents make safe, consistent changes.
 
 - Install deps (client): `npm --prefix client install`
 - Environment:
-  - Root `.env` is optional; `API_KEY` is only needed for CLI smoke checks.
+  - Root `.env` is optional; API keys are entered in the app UI when testing fetches.
 
 ## Build / run / test
 
@@ -24,10 +24,6 @@ All of these commands are run from the repo root unless noted.
 - Start Expo dev server: `npm --prefix client run start`
 - Android: `npm --prefix client run android`
 - iOS: `npm --prefix client run ios`
-
-### CLI fetch
-
-- CLI fetch with API key: `API_KEY=... npm --prefix client run fetch:cli`
 
 ### Tests
 
