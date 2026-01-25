@@ -27,6 +27,8 @@ It is intended to help autonomous coding agents make safe, consistent changes.
 
 All of these commands are run from the repo root unless noted.
 
+- For Expo-related issues or feature guidance, consult: https://docs.expo.dev/llms.txt
+
 ### Development app
 
 - Start Expo dev server: `npm --prefix client run start`

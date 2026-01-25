@@ -2,7 +2,7 @@ import './src/polyfills/native';
 
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
@@ -15,8 +15,11 @@ import {
   View,
 } from 'react-native';
 
-import { buildTweetSpeechText, speakText, stopSpeech } from './src/services/tts/ttsService';
-import { fetchXHomeTimeline, type XHomeTimelineTweetSample } from './src/services/xHome/xHomeTimeline';
+import { loadAuth, saveAuth } from './src/services/auth/authStore';
+import { FeedPaginator } from './src/services/feed/feedPaginator';
+import type { FeedItem, FeedSource, XAuth } from './src/services/feed/feedTypes';
+import { expoSpeechEngine } from './src/services/tts/expoSpeechEngine';
+import { SpeechQueueController } from './src/services/tts/speechQueueController';
 
 const TWEET_COUNT = 5;
 
@@ -34,14 +37,30 @@ const theme = {
 type FetchStatus = 'idle' | 'loading' | 'ready' | 'error';
 
 type FetchMeta = {
-  entriesCount: number;
-  tweetsCount: number;
-  nextCursor?: string;
+  itemsCount: number;
+  rawCount?: number;
+  cursor?: string;
 };
+
+const SOURCE_OPTIONS: FeedSource[] = ['x', 'facebook', 'telegram'];
+
+const SOURCE_LABELS: Record<FeedSource, string> = {
+  x: 'X',
+  facebook: 'Facebook',
+  telegram: 'Telegram',
+};
+
+const isSourceEnabled = (source: FeedSource): boolean => source === 'x';
 
 const formatHandle = (handle?: string) => {
   if (!handle) return '@unknown';
   return handle.startsWith('@') ? handle : `@${handle}`;
+};
+
+const formatAuthor = (item: FeedItem) => {
+  if (item.authorHandle) return formatHandle(item.authorHandle);
+  if (item.authorName) return item.authorName;
+  return 'Unknown author';
 };
 
 const truncateText = (text?: string, maxLen = 220) => {
@@ -50,43 +69,27 @@ const truncateText = (text?: string, maxLen = 220) => {
   return `${text.slice(0, maxLen).trim()}…`;
 };
 
-const logTimeline = (message: string) => {
-  console.log(`[rmf] ${message}`);
-};
-
-const mergeTweetSamples = (
-  current: XHomeTimelineTweetSample[],
-  incoming: XHomeTimelineTweetSample[],
-): XHomeTimelineTweetSample[] => {
-  const seen = new Set(current.map((tweet) => tweet.id));
-  const merged = [...current];
-  for (const tweet of incoming) {
-    if (!tweet.id || seen.has(tweet.id)) {
-      continue;
-    }
-    merged.push(tweet);
-    seen.add(tweet.id);
-  }
-  return merged;
-};
-
 export default function App() {
+  const [source, setSource] = useState<FeedSource>('x');
   const [apiKey, setApiKey] = useState('');
   const [status, setStatus] = useState<FetchStatus>('idle');
   const [error, setError] = useState<string | null>(null);
-  const [tweets, setTweets] = useState<XHomeTimelineTweetSample[]>([]);
+  const [items, setItems] = useState<FeedItem[]>([]);
   const [meta, setMeta] = useState<FetchMeta | null>(null);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [speechError, setSpeechError] = useState<string | null>(null);
   const [isFetchingMore, setIsFetchingMore] = useState(false);
   const fadeAnim = useRef(new Animated.Value(1)).current;
-  const tweetsRef = useRef<XHomeTimelineTweetSample[]>([]);
-  const apiKeyRef = useRef<string | null>(null);
+  const itemsRef = useRef<FeedItem[]>([]);
+  const paginatorRef = useRef<FeedPaginator | null>(null);
   const nextCursorRef = useRef<string | undefined>(undefined);
   const currentIndexRef = useRef(0);
   const speechSessionRef = useRef(0);
   const isFetchingMoreRef = useRef(false);
+  const speechControllerRef = useRef<SpeechQueueController | null>(null);
+  const queueDoneRef = useRef<() => void>(() => {});
+  const queueErrorRef = useRef<(error: Error) => void>(() => {});
 
   const setFetchingMoreState = (value: boolean) => {
     isFetchingMoreRef.current = value;
@@ -98,13 +101,105 @@ export default function App() {
     setCurrentIndex(value);
   };
 
-  const endSpeechSession = (sessionId: number, resetIndex: boolean) => {
-    if (sessionId !== speechSessionRef.current) return;
+  const handleQueueError = (queueError: Error) => {
+    const message = queueError instanceof Error ? queueError.message : String(queueError);
+    setSpeechError(`Speech error: ${message}`);
+    setIsSpeaking(false);
+  };
+
+  const handleQueueDone = async () => {
+    setIsSpeaking(false);
+    const nextCursor = nextCursorRef.current;
+    const paginator = paginatorRef.current;
+
+    if (!nextCursor || !paginator || isFetchingMoreRef.current) {
+      updateCurrentIndex(0);
+      return;
+    }
+
+    const sessionId = speechSessionRef.current;
+    const previousCount = itemsRef.current.length;
+    setFetchingMoreState(true);
+    setSpeechError(null);
+
+    try {
+      const page = await paginator.loadNext();
+      if (sessionId !== speechSessionRef.current) {
+        return;
+      }
+
+      const mergedItems = page.items;
+      itemsRef.current = mergedItems;
+      nextCursorRef.current = page.cursor;
+      speechControllerRef.current?.updateItems(mergedItems);
+      setItems(mergedItems);
+      setMeta({
+        itemsCount: mergedItems.length,
+        rawCount: page.rawCount,
+        cursor: page.cursor,
+      });
+
+      if (mergedItems.length <= previousCount) {
+        setSpeechError('No additional items returned.');
+        updateCurrentIndex(0);
+        return;
+      }
+
+      const startIndex = Math.min(previousCount, mergedItems.length - 1);
+      setIsSpeaking(true);
+      speechControllerRef.current?.play(mergedItems, startIndex);
+    } catch (err) {
+      if (sessionId !== speechSessionRef.current) {
+        return;
+      }
+      const message = err instanceof Error ? err.message : String(err);
+      setSpeechError(`Auto-fetch failed: ${message}`);
+      updateCurrentIndex(0);
+    } finally {
+      setFetchingMoreState(false);
+    }
+  };
+
+  queueDoneRef.current = () => {
+    void handleQueueDone();
+  };
+
+  queueErrorRef.current = (queueError: Error) => {
+    handleQueueError(queueError);
+  };
+
+  if (!speechControllerRef.current) {
+    speechControllerRef.current = new SpeechQueueController({
+      engine: expoSpeechEngine,
+      onIndexChange: (index) => updateCurrentIndex(index),
+      onDone: () => queueDoneRef.current(),
+      onError: (queueError) => queueErrorRef.current(queueError),
+    });
+  }
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadStoredAuth = async () => {
+      const stored = await loadAuth('x');
+      if (!isMounted || !stored?.apiKey) return;
+      setApiKey(stored.apiKey);
+    };
+
+    void loadStoredAuth();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const resetSpeechSession = () => {
+    speechSessionRef.current += 1;
+    speechControllerRef.current?.stop();
     setIsSpeaking(false);
     setFetchingMoreState(false);
-    if (resetIndex) {
-      updateCurrentIndex(0);
-    }
+    setSpeechError(null);
+    updateCurrentIndex(0);
   };
 
   const handleStopSpeech = () => {
@@ -112,119 +207,33 @@ export default function App() {
       return;
     }
     speechSessionRef.current += 1;
-    stopSpeech();
+    speechControllerRef.current?.stop();
     setIsSpeaking(false);
     setFetchingMoreState(false);
   };
 
-  function advanceSpeechQueue(index: number, sessionId: number) {
-    if (sessionId !== speechSessionRef.current) return;
-    const nextIndex = index + 1;
-    currentIndexRef.current = nextIndex;
-    const items = tweetsRef.current;
-    if (nextIndex < items.length) {
-      speakTweetAtIndex(nextIndex, sessionId);
+  const handleSourceSelect = (nextSource: FeedSource) => {
+    if (!isSourceEnabled(nextSource) || nextSource === source) {
       return;
     }
-    const nextCursor = nextCursorRef.current;
-    if (!nextCursor) {
-      endSpeechSession(sessionId, true);
-      return;
-    }
-    if (isFetchingMoreRef.current) {
-      return;
-    }
-    void fetchMoreTweets(nextCursor, sessionId);
-  }
-
-  function speakTweetAtIndex(index: number, sessionId: number) {
-    const tweet = tweetsRef.current[index];
-    if (!tweet) {
-      endSpeechSession(sessionId, true);
-      return;
-    }
-    const text = buildTweetSpeechText(tweet);
-    speakText(text, {
-      onStart: () => {
-        if (sessionId !== speechSessionRef.current) return;
-        updateCurrentIndex(index);
-      },
-      onDone: () => {
-        if (sessionId !== speechSessionRef.current) return;
-        advanceSpeechQueue(index, sessionId);
-      },
-      onStopped: () => {
-        if (sessionId !== speechSessionRef.current) return;
-        setIsSpeaking(false);
-      },
-      onError: (error) => {
-        if (sessionId !== speechSessionRef.current) return;
-        const message = error instanceof Error ? error.message : String(error);
-        setSpeechError(`Speech error: ${message}`);
-        endSpeechSession(sessionId, false);
-      },
-    });
-  }
-
-  async function fetchMoreTweets(cursor: string, sessionId: number) {
-    if (isFetchingMoreRef.current) return;
-    const apiKeyForFetch = apiKeyRef.current;
-    if (!apiKeyForFetch) {
-      setSpeechError('Missing API key for auto-fetch.');
-      endSpeechSession(sessionId, false);
-      return;
-    }
-    setFetchingMoreState(true);
-    setSpeechError(null);
-
-    try {
-      const result = await fetchXHomeTimeline({
-        apiKey: apiKeyForFetch,
-        count: TWEET_COUNT,
-        cursor,
-        log: logTimeline,
-      });
-
-      if (sessionId !== speechSessionRef.current) {
-        return;
-      }
-
-      const previousCount = tweetsRef.current.length;
-      const merged = mergeTweetSamples(tweetsRef.current, result.tweetSamples);
-      tweetsRef.current = merged;
-      nextCursorRef.current = result.nextCursor;
-      setTweets(merged);
-      setMeta({
-        entriesCount: result.entriesCount,
-        tweetsCount: result.tweetsCount,
-        nextCursor: result.nextCursor,
-      });
-
-      if (merged.length === previousCount) {
-        setSpeechError('No additional tweets returned.');
-        endSpeechSession(sessionId, false);
-        return;
-      }
-
-      const nextIndex = currentIndexRef.current;
-      if (nextIndex < merged.length) {
-        speakTweetAtIndex(nextIndex, sessionId);
-      } else {
-        endSpeechSession(sessionId, true);
-      }
-    } catch (err) {
-      if (sessionId !== speechSessionRef.current) {
-        return;
-      }
-      const message = err instanceof Error ? err.message : String(err);
-      setSpeechError(`Auto-fetch failed: ${message}`);
-      endSpeechSession(sessionId, false);
-    } finally {
-      setFetchingMoreState(false);
-    }
-  }
+    setSource(nextSource);
+    setStatus('idle');
+    setError(null);
+    setMeta(null);
+    setItems([]);
+    itemsRef.current = [];
+    nextCursorRef.current = undefined;
+    paginatorRef.current = null;
+    resetSpeechSession();
+  };
 
   const handleFetch = async () => {
+    if (source !== 'x') {
+      setError('This source is not supported yet.');
+      setStatus('error');
+      return;
+    }
+
     const trimmedKey = apiKey.trim();
     if (!trimmedKey) {
       setError('Paste a valid API key first.');
@@ -232,38 +241,39 @@ export default function App() {
       return;
     }
 
-    speechSessionRef.current += 1;
-    stopSpeech();
-    setIsSpeaking(false);
-    setFetchingMoreState(false);
-    setSpeechError(null);
-    updateCurrentIndex(0);
-    tweetsRef.current = [];
+    resetSpeechSession();
+    itemsRef.current = [];
     nextCursorRef.current = undefined;
-    apiKeyRef.current = trimmedKey;
+    paginatorRef.current = null;
 
     setStatus('loading');
     setError(null);
-    setTweets([]);
+    setItems([]);
     setMeta(null);
     fadeAnim.setValue(0);
 
-    try {
-      const result = await fetchXHomeTimeline({
-        apiKey: trimmedKey,
-        count: TWEET_COUNT,
-        log: logTimeline,
-      });
+    const auth: XAuth = { apiKey: trimmedKey };
+    const paginator = new FeedPaginator({
+      source: 'x',
+      auth,
+      count: TWEET_COUNT,
+    });
+    paginatorRef.current = paginator;
 
-      tweetsRef.current = result.tweetSamples;
-      nextCursorRef.current = result.nextCursor;
-      setTweets(result.tweetSamples);
+    try {
+      const page = await paginator.loadInitial();
+      itemsRef.current = page.items;
+      nextCursorRef.current = page.cursor;
+      speechControllerRef.current?.updateItems(page.items);
+      setItems(page.items);
       setMeta({
-        entriesCount: result.entriesCount,
-        tweetsCount: result.tweetsCount,
-        nextCursor: result.nextCursor,
+        itemsCount: page.items.length,
+        rawCount: page.rawCount,
+        cursor: page.cursor,
       });
       setStatus('ready');
+
+      void saveAuth('x', auth).catch(() => undefined);
 
       Animated.timing(fadeAnim, {
         toValue: 1,
@@ -279,28 +289,57 @@ export default function App() {
   };
 
   const handlePlayAll = () => {
-    const items = tweetsRef.current;
-    if (status === 'loading' || items.length === 0 || isSpeaking) {
+    const queueItems = itemsRef.current;
+    if (status === 'loading' || queueItems.length === 0 || isSpeaking) {
       return;
     }
     setSpeechError(null);
-    stopSpeech();
     setFetchingMoreState(false);
 
-    const sessionId = speechSessionRef.current + 1;
-    speechSessionRef.current = sessionId;
+    speechSessionRef.current += 1;
     setIsSpeaking(true);
 
-    const startIndex = Math.max(0, Math.min(currentIndexRef.current, items.length - 1));
-    currentIndexRef.current = startIndex;
-    speakTweetAtIndex(startIndex, sessionId);
+    const startIndex = Math.max(0, Math.min(currentIndexRef.current, queueItems.length - 1));
+    speechControllerRef.current?.play(queueItems, startIndex);
   };
 
-  const hasTweets = tweets.length > 0;
-  const statusText = status === 'loading' ? 'Fetching from X...' : status === 'ready' ? 'Timeline loaded' : 'Idle';
-  const canPlay = hasTweets && !isSpeaking && status !== 'loading';
+  const handleResume = () => {
+    const queueItems = itemsRef.current;
+    if (status === 'loading' || queueItems.length === 0 || isSpeaking) {
+      return;
+    }
+    setSpeechError(null);
+    setFetchingMoreState(false);
+
+    speechSessionRef.current += 1;
+    setIsSpeaking(true);
+    speechControllerRef.current?.updateItems(queueItems);
+    speechControllerRef.current?.resume();
+  };
+
+  const hasItems = items.length > 0;
+  const sourceLabel = SOURCE_LABELS[source];
+  const statusText =
+    status === 'loading'
+      ? `Fetching from ${sourceLabel}...`
+      : status === 'ready'
+        ? 'Feed loaded'
+        : 'Idle';
+  const canPlay = hasItems && !isSpeaking && status !== 'loading' && !isFetchingMore;
+  const canResume =
+    hasItems &&
+    !isSpeaking &&
+    status !== 'loading' &&
+    currentIndexRef.current > 0 &&
+    currentIndexRef.current < items.length &&
+    !isFetchingMore;
   const canStop = isSpeaking || isFetchingMore;
-  const spokenIndexLabel = hasTweets ? Math.min(currentIndex + 1, tweets.length) : 0;
+  const spokenIndexLabel = hasItems ? Math.min(currentIndex + 1, items.length) : 0;
+  const subtitleText =
+    source === 'x'
+      ? `Paste your X Auth Helper API key to fetch the first ${TWEET_COUNT} items.`
+      : `Connect a source to fetch the first ${TWEET_COUNT} items.`;
+  const authLabel = source === 'x' ? 'X API key' : 'API key';
 
   return (
     <LinearGradient colors={['#f2d8c4', '#e7eef8']} style={styles.background}>
@@ -309,14 +348,45 @@ export default function App() {
         <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
           <View style={styles.header}>
             <Text style={styles.eyebrow}>ReadMyFeed</Text>
-            <Text style={styles.title}>Home timeline preview</Text>
-            <Text style={styles.subtitle}>
-              Paste your X Auth Helper API key to fetch the first {TWEET_COUNT} tweets.
-            </Text>
+            <Text style={styles.title}>Home feed preview</Text>
+            <Text style={styles.subtitle}>{subtitleText}</Text>
           </View>
 
           <View style={styles.panel}>
-            <Text style={styles.label}>API key</Text>
+            <View style={styles.sourceRow}>
+              <Text style={styles.label}>Source</Text>
+              <View style={styles.sourceOptions}>
+                {SOURCE_OPTIONS.map((option) => {
+                  const isEnabled = isSourceEnabled(option);
+                  const isSelected = option === source;
+                  return (
+                    <Pressable
+                      key={option}
+                      onPress={() => handleSourceSelect(option)}
+                      style={({ pressed }) => [
+                        styles.sourceButton,
+                        isSelected && styles.sourceButtonActive,
+                        !isEnabled && styles.sourceButtonDisabled,
+                        pressed && isEnabled && styles.sourceButtonPressed,
+                      ]}
+                      disabled={!isEnabled || status === 'loading'}
+                    >
+                      <Text
+                        style={[
+                          styles.sourceButtonText,
+                          isSelected && styles.sourceButtonTextActive,
+                          !isEnabled && styles.sourceButtonTextDisabled,
+                        ]}
+                      >
+                        {SOURCE_LABELS[option]}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+
+            <Text style={styles.label}>{authLabel}</Text>
             <TextInput
               multiline
               placeholder="Paste your key"
@@ -342,7 +412,7 @@ export default function App() {
                 {status === 'loading' ? (
                   <ActivityIndicator color="white" />
                 ) : (
-                  <Text style={styles.buttonText}>Fetch tweets</Text>
+                  <Text style={styles.buttonText}>Fetch items</Text>
                 )}
               </Pressable>
               <View style={styles.statusPill}>
@@ -371,6 +441,18 @@ export default function App() {
                 <Text style={styles.ttsButtonText}>Play all</Text>
               </Pressable>
               <Pressable
+                onPress={handleResume}
+                style={({ pressed }) => [
+                  styles.ttsButton,
+                  styles.ttsButtonSecondary,
+                  !canResume && styles.ttsButtonDisabled,
+                  pressed && canResume && styles.ttsButtonPressedSecondary,
+                ]}
+                disabled={!canResume}
+              >
+                <Text style={styles.ttsButtonTextSecondary}>Resume</Text>
+              </Pressable>
+              <Pressable
                 onPress={handleStopSpeech}
                 style={({ pressed }) => [
                   styles.ttsButton,
@@ -384,15 +466,15 @@ export default function App() {
               </Pressable>
             </View>
 
-            {hasTweets ? (
+            {hasItems ? (
               <Text style={styles.ttsStatus}>
                 {isSpeaking
-                  ? `Reading ${spokenIndexLabel} of ${tweets.length}`
-                  : `Ready to read ${tweets.length} tweets`}
+                  ? `Reading ${spokenIndexLabel} of ${items.length}`
+                  : `Ready to read ${items.length} items`}
               </Text>
             ) : null}
 
-            {isFetchingMore ? <Text style={styles.ttsStatus}>Fetching more tweets...</Text> : null}
+            {isFetchingMore ? <Text style={styles.ttsStatus}>Fetching more items...</Text> : null}
 
             {speechError ? <Text style={styles.errorText}>{speechError}</Text> : null}
 
@@ -400,36 +482,38 @@ export default function App() {
 
             {meta ? (
               <View style={styles.metaRow}>
-                <Text style={styles.metaText}>Entries: {meta.entriesCount}</Text>
-                <Text style={styles.metaText}>Tweets: {meta.tweetsCount}</Text>
+                <Text style={styles.metaText}>Items: {meta.itemsCount}</Text>
+                <Text style={styles.metaText}>
+                  Raw: {meta.rawCount !== undefined ? meta.rawCount : 'n/a'}
+                </Text>
                 <Text style={styles.metaText} numberOfLines={1}>
-                  Cursor: {meta.nextCursor ? 'set' : 'none'}
+                  Cursor: {meta.cursor ? 'set' : 'none'}
                 </Text>
               </View>
             ) : null}
           </View>
 
           <Animated.View style={[styles.timeline, { opacity: fadeAnim }]}>
-            <Text style={styles.sectionTitle}>Tweet samples</Text>
-            {hasTweets ? (
-              tweets.map((tweet, index) => (
-                <View key={`${tweet.id}_${index}`} style={styles.tweetCard}>
+            <Text style={styles.sectionTitle}>Feed samples</Text>
+            {hasItems ? (
+              items.map((item, index) => (
+                <View key={`${item.id}_${index}`} style={styles.tweetCard}>
                   <View style={styles.tweetHeader}>
                     <Text style={styles.tweetIndex}>{String(index + 1).padStart(2, '0')}</Text>
                     <View style={styles.tweetMeta}>
-                      <Text style={styles.tweetUser}>{formatHandle(tweet.user)}</Text>
+                      <Text style={styles.tweetUser}>{formatAuthor(item)}</Text>
                       <Text style={styles.tweetId} numberOfLines={1}>
-                        {tweet.id || 'missing id'}
+                        {item.id || 'missing id'}
                       </Text>
                     </View>
                   </View>
-                  <Text style={styles.tweetText}>{truncateText(tweet.text)}</Text>
+                  <Text style={styles.tweetText}>{truncateText(item.text)}</Text>
                 </View>
               ))
             ) : (
               <View style={styles.emptyState}>
-                <Text style={styles.emptyTitle}>No tweets yet</Text>
-                <Text style={styles.emptyBody}>Fetch the timeline to see a preview here.</Text>
+                <Text style={styles.emptyTitle}>No items yet</Text>
+                <Text style={styles.emptyBody}>Fetch the feed to see a preview here.</Text>
               </View>
             )}
           </Animated.View>
@@ -490,6 +574,43 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 1.1,
   },
+  sourceRow: {
+    gap: 8,
+  },
+  sourceOptions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  sourceButton: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: theme.border,
+    backgroundColor: theme.surfaceMuted,
+  },
+  sourceButtonActive: {
+    backgroundColor: theme.ink,
+    borderColor: theme.ink,
+  },
+  sourceButtonDisabled: {
+    opacity: 0.45,
+  },
+  sourceButtonPressed: {
+    backgroundColor: theme.surface,
+  },
+  sourceButtonText: {
+    fontSize: 12,
+    color: theme.inkSoft,
+    fontFamily: 'sans-serif-medium',
+  },
+  sourceButtonTextActive: {
+    color: 'white',
+  },
+  sourceButtonTextDisabled: {
+    color: theme.inkSoft,
+  },
   input: {
     minHeight: 90,
     borderWidth: 1,
@@ -530,6 +651,7 @@ const styles = StyleSheet.create({
   ttsRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    flexWrap: 'wrap',
     gap: 12,
   },
   ttsButton: {
