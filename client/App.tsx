@@ -2,20 +2,36 @@ import './src/polyfills/native';
 
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useRef, useState } from 'react';
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ComponentProps,
+  type ComponentType,
+  type RefAttributes,
+} from 'react';
 import {
   ActivityIndicator,
   Animated,
+  Modal,
+  Platform,
   Pressable,
   SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
+import { WebView } from 'react-native-webview';
 
-import { loadAuth, saveAuth } from './src/services/auth/authStore';
+import { clearAuth, loadAuth, saveAuth } from './src/services/auth/authStore';
+import {
+  clearXCookies,
+  getXLoginUrl,
+  isLoginComplete,
+  resolveXAuthFromCookies,
+  type XLoginState,
+} from './src/services/auth/xLoginSession';
 import { FeedPaginator } from './src/services/feed/feedPaginator';
 import type { FeedItem, FeedSource, XAuth } from './src/services/feed/feedTypes';
 import { expoSpeechEngine } from './src/services/tts/expoSpeechEngine';
@@ -24,17 +40,66 @@ import { SpeechQueueController } from './src/services/tts/speechQueueController'
 const TWEET_COUNT = 5;
 
 const theme = {
-  ink: '#16212e',
-  inkSoft: '#2f3e4f',
-  accent: '#c96a2a',
-  accentStrong: '#f08b3f',
-  surface: 'rgba(255, 255, 255, 0.92)',
-  surfaceMuted: 'rgba(255, 255, 255, 0.72)',
-  border: 'rgba(22, 33, 46, 0.14)',
-  error: '#9b3a34',
+  ink: '#0f1c2f',
+  inkSoft: '#43506a',
+  accent: '#1aa39c',
+  accentStrong: '#137d78',
+  accentSoft: 'rgba(26, 163, 156, 0.16)',
+  surface: 'rgba(255, 255, 255, 0.96)',
+  surfaceMuted: 'rgba(240, 244, 250, 0.88)',
+  border: 'rgba(15, 28, 47, 0.1)',
+  error: '#b5443f',
+  glow: 'rgba(26, 163, 156, 0.22)',
 };
 
+type WebViewHandle = {
+  injectJavaScript: (script: string) => void;
+  postMessage: (message: string) => void;
+  reload: () => void;
+};
+
+const LoginWebView = WebView as unknown as ComponentType<
+  ComponentProps<typeof WebView> & RefAttributes<WebViewHandle>
+>;
+
+const X_LOGIN_USER_AGENT = Platform.select({
+  ios:
+    'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
+  android:
+    'Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+});
+
+const LOGIN_POPUP_MESSAGE = 'x_login_popup_message';
+const LOGIN_POPUP_CLOSE = 'x_login_popup_close';
+const LOGIN_POPUP_BRIDGE = `
+  (function() {
+    var postMessage =
+      window.ReactNativeWebView && window.ReactNativeWebView.postMessage
+        ? window.ReactNativeWebView.postMessage.bind(window.ReactNativeWebView)
+        : function() {};
+
+    window.opener = {
+      postMessage: function(data, origin) {
+        postMessage(JSON.stringify({
+          type: '${LOGIN_POPUP_MESSAGE}',
+          data: data,
+          origin: origin,
+          sourceOrigin: window.location.origin
+        }));
+      }
+    };
+
+    window.close = function() {
+      postMessage(JSON.stringify({
+        type: '${LOGIN_POPUP_CLOSE}'
+      }));
+    };
+  })();
+  true;
+`;
+
 type FetchStatus = 'idle' | 'loading' | 'ready' | 'error';
+
 
 type FetchMeta = {
   itemsCount: number;
@@ -71,7 +136,10 @@ const truncateText = (text?: string, maxLen = 220) => {
 
 export default function App() {
   const [source, setSource] = useState<FeedSource>('x');
-  const [apiKey, setApiKey] = useState('');
+  const [xAuth, setXAuth] = useState<XAuth | null>(null);
+  const [loginState, setLoginState] = useState<XLoginState>('idle');
+  const [loginError, setLoginError] = useState<string | null>(null);
+  const [isLoginVisible, setIsLoginVisible] = useState(false);
   const [status, setStatus] = useState<FetchStatus>('idle');
   const [error, setError] = useState<string | null>(null);
   const [items, setItems] = useState<FeedItem[]>([]);
@@ -90,6 +158,9 @@ export default function App() {
   const speechControllerRef = useRef<SpeechQueueController | null>(null);
   const queueDoneRef = useRef<() => void>(() => {});
   const queueErrorRef = useRef<(error: Error) => void>(() => {});
+  const loginAttemptRef = useRef(false);
+  const loginWebViewRef = useRef<WebViewHandle | null>(null);
+  const [loginPopupUrl, setLoginPopupUrl] = useState<string | null>(null);
 
   const setFetchingMoreState = (value: boolean) => {
     isFetchingMoreRef.current = value;
@@ -182,8 +253,9 @@ export default function App() {
 
     const loadStoredAuth = async () => {
       const stored = await loadAuth('x');
-      if (!isMounted || !stored?.apiKey) return;
-      setApiKey(stored.apiKey);
+      if (!isMounted || !stored) return;
+      setXAuth(stored);
+      setLoginState('success');
     };
 
     void loadStoredAuth();
@@ -227,6 +299,164 @@ export default function App() {
     resetSpeechSession();
   };
 
+  const handleOpenLogin = () => {
+    if (source !== 'x') {
+      return;
+    }
+    loginAttemptRef.current = false;
+    setLoginPopupUrl(null);
+    setLoginError(null);
+    setLoginState('idle');
+    setIsLoginVisible(true);
+  };
+
+  const handleCloseLogin = () => {
+    setIsLoginVisible(false);
+    setLoginPopupUrl(null);
+    loginAttemptRef.current = false;
+    setLoginState(xAuth ? 'success' : 'idle');
+  };
+
+  const closeLoginPopup = (shouldReload = false) => {
+    setLoginPopupUrl(null);
+    if (shouldReload) {
+      loginWebViewRef.current?.reload();
+    }
+  };
+
+  const relayPopupMessage = (data: unknown, origin?: string) => {
+    const serializedData = data === undefined ? 'undefined' : JSON.stringify(data);
+    const serializedOrigin = JSON.stringify(origin ?? '');
+
+    loginWebViewRef.current?.injectJavaScript(`
+      window.dispatchEvent(new MessageEvent('message', {
+        data: ${serializedData},
+        origin: ${serializedOrigin},
+        source: window
+      }));
+      true;
+    `);
+  };
+
+  const handleLoginOpenWindow = (event: { nativeEvent: { targetUrl: string } }) => {
+    if (!event?.nativeEvent?.targetUrl) {
+      return;
+    }
+    setLoginPopupUrl(event.nativeEvent.targetUrl);
+  };
+
+  const handleLoginPopupMessage = (event: { nativeEvent: { data: string } }) => {
+    if (!event?.nativeEvent?.data) {
+      return;
+    }
+
+    try {
+      const payload = JSON.parse(event.nativeEvent.data) as {
+        type?: string;
+        data?: unknown;
+        origin?: string;
+        sourceOrigin?: string;
+      };
+
+      if (payload.type === LOGIN_POPUP_MESSAGE) {
+        relayPopupMessage(payload.data, payload.sourceOrigin ?? payload.origin);
+        closeLoginPopup(true);
+        void tryFinalizeLogin();
+        return;
+      }
+
+      if (payload.type === LOGIN_POPUP_CLOSE) {
+        closeLoginPopup(true);
+      }
+    } catch {
+      closeLoginPopup(true);
+    }
+  };
+
+  const handleLoginPopupNavigation = (url: string) => {
+    if (!url) {
+      return;
+    }
+
+    if (isLoginComplete(url)) {
+      closeLoginPopup(false);
+      handleLoginNavigation(url);
+    }
+  };
+
+  const completeLogin = async (auth: XAuth) => {
+    setLoginState('in_progress');
+    setLoginError(null);
+    setXAuth(auth);
+    await saveAuth('x', auth);
+    setLoginState('success');
+    setIsLoginVisible(false);
+    setLoginPopupUrl(null);
+    loginAttemptRef.current = false;
+  };
+
+  const finalizeLogin = async () => {
+    try {
+      const auth = await resolveXAuthFromCookies();
+      await completeLogin(auth);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      setLoginError(`Login failed: ${message}`);
+      setLoginState('error');
+      loginAttemptRef.current = false;
+    }
+  };
+
+  const tryFinalizeLogin = async () => {
+    if (loginAttemptRef.current) {
+      return;
+    }
+
+    loginAttemptRef.current = true;
+
+    try {
+      const auth = await resolveXAuthFromCookies();
+      await completeLogin(auth);
+    } catch {
+      loginAttemptRef.current = false;
+    }
+  };
+
+  const handleLoginNavigation = (url: string) => {
+    if (!url) {
+      return;
+    }
+    if (!isLoginComplete(url) || loginAttemptRef.current) {
+      return;
+    }
+    loginAttemptRef.current = true;
+    void finalizeLogin();
+  };
+
+  const handleLogout = async () => {
+    setStatus('idle');
+    setError(null);
+    setMeta(null);
+    setItems([]);
+    itemsRef.current = [];
+    nextCursorRef.current = undefined;
+    paginatorRef.current = null;
+    resetSpeechSession();
+    setXAuth(null);
+    setLoginState('idle');
+    setLoginError(null);
+    loginAttemptRef.current = false;
+
+    try {
+      await clearAuth('x');
+      await clearXCookies();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      setLoginError(`Logout cleanup failed: ${message}`);
+      setLoginState('error');
+    }
+  };
+
   const handleFetch = async () => {
     if (source !== 'x') {
       setError('This source is not supported yet.');
@@ -234,9 +464,8 @@ export default function App() {
       return;
     }
 
-    const trimmedKey = apiKey.trim();
-    if (!trimmedKey) {
-      setError('Paste a valid API key first.');
+    if (!xAuth) {
+      setError('Log in to X first.');
       setStatus('error');
       return;
     }
@@ -252,7 +481,7 @@ export default function App() {
     setMeta(null);
     fadeAnim.setValue(0);
 
-    const auth: XAuth = { apiKey: trimmedKey };
+    const auth: XAuth = xAuth;
     const paginator = new FeedPaginator({
       source: 'x',
       auth,
@@ -272,8 +501,6 @@ export default function App() {
         cursor: page.cursor,
       });
       setStatus('ready');
-
-      void saveAuth('x', auth).catch(() => undefined);
 
       Animated.timing(fadeAnim, {
         toValue: 1,
@@ -319,6 +546,7 @@ export default function App() {
 
   const hasItems = items.length > 0;
   const sourceLabel = SOURCE_LABELS[source];
+  const isLoggedIn = Boolean(xAuth);
   const statusText =
     status === 'loading'
       ? `Fetching from ${sourceLabel}...`
@@ -337,12 +565,26 @@ export default function App() {
   const spokenIndexLabel = hasItems ? Math.min(currentIndex + 1, items.length) : 0;
   const subtitleText =
     source === 'x'
-      ? `Paste your X Auth Helper API key to fetch the first ${TWEET_COUNT} items.`
+      ? `Log in to X to fetch the first ${TWEET_COUNT} items.`
       : `Connect a source to fetch the first ${TWEET_COUNT} items.`;
-  const authLabel = source === 'x' ? 'X API key' : 'API key';
+  const loginStatusText =
+    loginState === 'in_progress'
+      ? 'Checking session...'
+      : loginState === 'error' && !isLoggedIn
+        ? 'Login error'
+        : isLoggedIn
+          ? 'Connected'
+          : 'Not connected';
+  const loginActionLabel = isLoggedIn ? 'Re-login' : 'Login to X';
+  const canLogin = loginState !== 'in_progress';
+  const canLogout = isLoggedIn && loginState !== 'in_progress';
+  const canFetch = isLoggedIn && status !== 'loading';
 
   return (
-    <LinearGradient colors={['#f2d8c4', '#e7eef8']} style={styles.background}>
+    <LinearGradient
+      colors={['#d5f3ef', '#e8f0fb', '#f7f9fd']}
+      style={styles.background}
+    >
       <StatusBar style="dark" />
       <SafeAreaView style={styles.safeArea}>
         <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
@@ -350,6 +592,7 @@ export default function App() {
             <Text style={styles.eyebrow}>ReadMyFeed</Text>
             <Text style={styles.title}>Home feed preview</Text>
             <Text style={styles.subtitle}>{subtitleText}</Text>
+            <View style={styles.headerLine} />
           </View>
 
           <View style={styles.panel}>
@@ -386,28 +629,57 @@ export default function App() {
               </View>
             </View>
 
-            <Text style={styles.label}>{authLabel}</Text>
-            <TextInput
-              multiline
-              placeholder="Paste your key"
-              value={apiKey}
-              onChangeText={setApiKey}
-              style={styles.input}
-              autoCapitalize="none"
-              autoCorrect={false}
-              spellCheck={false}
-              editable={status !== 'loading'}
-            />
+            <Text style={styles.label}>X session</Text>
+            <View style={styles.authRow}>
+              <View style={[styles.statusPill, styles.authStatusPill]}>
+                <View
+                  style={[
+                    styles.statusDot,
+                    isLoggedIn && styles.statusDotReady,
+                    loginState === 'error' && styles.statusDotError,
+                  ]}
+                />
+                <Text style={styles.statusText}>{loginStatusText}</Text>
+              </View>
+              <Pressable
+                onPress={handleOpenLogin}
+                style={({ pressed }) => [
+                  styles.authButton,
+                  styles.authButtonPrimary,
+                  !canLogin && styles.authButtonDisabled,
+                  pressed && canLogin && styles.authButtonPressedPrimary,
+                ]}
+                disabled={!canLogin}
+              >
+                <Text style={styles.authButtonText}>{loginActionLabel}</Text>
+              </Pressable>
+              {isLoggedIn ? (
+                <Pressable
+                  onPress={handleLogout}
+                  style={({ pressed }) => [
+                    styles.authButton,
+                    styles.authButtonSecondary,
+                    !canLogout && styles.authButtonDisabled,
+                    pressed && canLogout && styles.authButtonPressedSecondary,
+                  ]}
+                  disabled={!canLogout}
+                >
+                  <Text style={styles.authButtonTextSecondary}>Log out</Text>
+                </Pressable>
+              ) : null}
+            </View>
+
+            {loginError ? <Text style={styles.errorText}>{loginError}</Text> : null}
 
             <View style={styles.buttonRow}>
               <Pressable
                 onPress={handleFetch}
                 style={({ pressed }) => [
                   styles.button,
-                  (!apiKey.trim() || status === 'loading') && styles.buttonDisabled,
-                  pressed && styles.buttonPressed,
+                  !canFetch && styles.buttonDisabled,
+                  pressed && canFetch && styles.buttonPressed,
                 ]}
-                disabled={!apiKey.trim() || status === 'loading'}
+                disabled={!canFetch}
               >
                 {status === 'loading' ? (
                   <ActivityIndicator color="white" />
@@ -518,6 +790,89 @@ export default function App() {
             )}
           </Animated.View>
         </ScrollView>
+        <Modal
+          visible={isLoginVisible}
+          animationType="slide"
+          onRequestClose={handleCloseLogin}
+        >
+          <SafeAreaView style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={styles.modalEyebrow}>X session</Text>
+                <Text style={styles.modalTitle}>Sign in to X</Text>
+              </View>
+              <Pressable
+                onPress={handleCloseLogin}
+                style={({ pressed }) => [
+                  styles.modalCloseButton,
+                  pressed && styles.modalCloseButtonPressed,
+                ]}
+              >
+                <Text style={styles.modalCloseText}>Close</Text>
+              </Pressable>
+            </View>
+            {loginError && loginState === 'error' ? (
+              <Text style={styles.modalErrorText}>{loginError}</Text>
+            ) : null}
+            <View style={styles.modalBody}>
+              <LoginWebView
+                ref={loginWebViewRef}
+                source={{ uri: getXLoginUrl() }}
+                onNavigationStateChange={(navState) => handleLoginNavigation(navState.url)}
+                onLoadEnd={() => {
+                  if (!loginPopupUrl) {
+                    void tryFinalizeLogin();
+                  }
+                }}
+                onOpenWindow={handleLoginOpenWindow}
+                sharedCookiesEnabled
+                thirdPartyCookiesEnabled
+                javaScriptCanOpenWindowsAutomatically
+                setSupportMultipleWindows
+                startInLoadingState
+                userAgent={X_LOGIN_USER_AGENT}
+                style={styles.webView}
+              />
+              {loginPopupUrl ? (
+                <View style={styles.loginPopup}>
+                  <View style={styles.loginPopupHeader}>
+                    <Text style={styles.loginPopupTitle}>Google sign-in</Text>
+                    <Pressable
+                      onPress={() => closeLoginPopup(false)}
+                      style={({ pressed }) => [
+                        styles.modalCloseButton,
+                        pressed && styles.modalCloseButtonPressed,
+                      ]}
+                    >
+                      <Text style={styles.modalCloseText}>Close</Text>
+                    </Pressable>
+                  </View>
+                  <LoginWebView
+                    source={{ uri: loginPopupUrl }}
+                    onNavigationStateChange={(navState) =>
+                      handleLoginPopupNavigation(navState.url)
+                    }
+                    onMessage={handleLoginPopupMessage}
+                    injectedJavaScriptBeforeContentLoaded={LOGIN_POPUP_BRIDGE}
+                    sharedCookiesEnabled
+                    thirdPartyCookiesEnabled
+                    javaScriptCanOpenWindowsAutomatically
+                    setSupportMultipleWindows
+                    startInLoadingState
+                    userAgent={X_LOGIN_USER_AGENT}
+                    style={styles.webView}
+                  />
+                </View>
+              ) : null}
+              {loginState === 'in_progress' ? (
+                <View style={styles.modalOverlay}>
+                  <ActivityIndicator color={theme.accent} />
+                  <Text style={styles.modalOverlayText}>Finalizing login...</Text>
+                </View>
+              ) : null}
+            </View>
+          </SafeAreaView>
+        </Modal>
       </SafeAreaView>
     </LinearGradient>
   );
@@ -531,48 +886,60 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingHorizontal: 20,
-    paddingVertical: 28,
-    gap: 22,
+    paddingHorizontal: 22,
+    paddingVertical: 30,
+    gap: 24,
   },
   header: {
-    gap: 6,
+    gap: 8,
   },
   eyebrow: {
-    color: theme.accent,
+    color: theme.accentStrong,
     textTransform: 'uppercase',
-    letterSpacing: 1.2,
-    fontSize: 12,
+    letterSpacing: 1.6,
+    fontSize: 11,
     fontFamily: 'sans-serif-medium',
+    backgroundColor: theme.accentSoft,
+    alignSelf: 'flex-start',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 999,
   },
   title: {
-    fontSize: 30,
+    fontSize: 32,
     color: theme.ink,
     fontFamily: 'serif',
+    letterSpacing: -0.3,
   },
   subtitle: {
     fontSize: 15,
     color: theme.inkSoft,
     lineHeight: 22,
   },
+  headerLine: {
+    width: 56,
+    height: 3,
+    backgroundColor: theme.accent,
+    borderRadius: 999,
+  },
   panel: {
-    padding: 16,
-    borderRadius: 18,
+    padding: 18,
+    borderRadius: 20,
     backgroundColor: theme.surface,
     borderWidth: 1,
     borderColor: theme.border,
-    gap: 12,
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 3,
+    gap: 14,
+    shadowColor: theme.glow,
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 4,
   },
   label: {
-    fontSize: 13,
+    fontSize: 11,
     color: theme.inkSoft,
     textTransform: 'uppercase',
-    letterSpacing: 1.1,
+    letterSpacing: 1.4,
   },
   sourceRow: {
     gap: 8,
@@ -580,25 +947,25 @@ const styles = StyleSheet.create({
   sourceOptions: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: 10,
   },
   sourceButton: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
+    paddingVertical: 7,
+    paddingHorizontal: 14,
     borderRadius: 999,
     borderWidth: 1,
     borderColor: theme.border,
-    backgroundColor: theme.surfaceMuted,
+    backgroundColor: theme.surface,
   },
   sourceButtonActive: {
-    backgroundColor: theme.ink,
-    borderColor: theme.ink,
+    backgroundColor: theme.accent,
+    borderColor: theme.accent,
   },
   sourceButtonDisabled: {
     opacity: 0.45,
   },
   sourceButtonPressed: {
-    backgroundColor: theme.surface,
+    backgroundColor: theme.accentSoft,
   },
   sourceButtonText: {
     fontSize: 12,
@@ -611,17 +978,54 @@ const styles = StyleSheet.create({
   sourceButtonTextDisabled: {
     color: theme.inkSoft,
   },
-  input: {
-    minHeight: 90,
+  authRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  authStatusPill: {
+    flexGrow: 1,
+    flexBasis: 160,
+  },
+  authButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    minWidth: 120,
+  },
+  authButtonPrimary: {
+    backgroundColor: theme.accent,
+    shadowColor: theme.glow,
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 2,
+  },
+  authButtonSecondary: {
+    backgroundColor: theme.surfaceMuted,
     borderWidth: 1,
     borderColor: theme.border,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    backgroundColor: theme.surfaceMuted,
-    color: theme.ink,
-    fontSize: 14,
-    fontFamily: 'monospace',
+  },
+  authButtonDisabled: {
+    opacity: 0.6,
+  },
+  authButtonPressedPrimary: {
+    backgroundColor: theme.accentStrong,
+  },
+  authButtonPressedSecondary: {
+    backgroundColor: theme.surface,
+  },
+  authButtonText: {
+    color: 'white',
+    fontSize: 13,
+    fontFamily: 'sans-serif-medium',
+  },
+  authButtonTextSecondary: {
+    color: theme.inkSoft,
+    fontSize: 13,
+    fontFamily: 'sans-serif-medium',
   },
   buttonRow: {
     flexDirection: 'row',
@@ -631,11 +1035,16 @@ const styles = StyleSheet.create({
   },
   button: {
     backgroundColor: theme.accent,
-    paddingVertical: 12,
+    paddingVertical: 13,
     paddingHorizontal: 18,
-    borderRadius: 14,
+    borderRadius: 16,
     minWidth: 140,
     alignItems: 'center',
+    shadowColor: theme.glow,
+    shadowOpacity: 0.35,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 3,
   },
   buttonDisabled: {
     opacity: 0.6,
@@ -645,26 +1054,31 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     color: 'white',
-    fontSize: 15,
+    fontSize: 16,
     fontFamily: 'sans-serif-medium',
   },
   ttsRow: {
     flexDirection: 'row',
     alignItems: 'center',
     flexWrap: 'wrap',
-    gap: 12,
+    gap: 10,
   },
   ttsButton: {
     flex: 1,
-    paddingVertical: 10,
+    paddingVertical: 11,
     paddingHorizontal: 12,
-    borderRadius: 12,
+    borderRadius: 14,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: 'transparent',
   },
   ttsButtonPrimary: {
     backgroundColor: theme.accent,
+    shadowColor: theme.glow,
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 2,
   },
   ttsButtonSecondary: {
     backgroundColor: theme.surfaceMuted,
@@ -696,12 +1110,14 @@ const styles = StyleSheet.create({
   statusPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: theme.surfaceMuted,
+    backgroundColor: theme.surface,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 999,
     gap: 6,
     flex: 1,
+    borderWidth: 1,
+    borderColor: theme.border,
   },
   statusDot: {
     width: 8,
@@ -710,7 +1126,7 @@ const styles = StyleSheet.create({
     backgroundColor: theme.inkSoft,
   },
   statusDotReady: {
-    backgroundColor: '#2f7d4d',
+    backgroundColor: theme.accent,
   },
   statusDotError: {
     backgroundColor: theme.error,
@@ -726,27 +1142,119 @@ const styles = StyleSheet.create({
   metaRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 10,
+    gap: 8,
   },
   metaText: {
     fontSize: 12,
     color: theme.inkSoft,
   },
-  timeline: {
+  modalContainer: {
+    flex: 1,
+    backgroundColor: theme.surface,
+  },
+  modalHeader: {
+    paddingHorizontal: 22,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.border,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  modalErrorText: {
+    color: theme.error,
+    fontSize: 12,
+    paddingHorizontal: 22,
+    paddingBottom: 8,
+  },
+  modalEyebrow: {
+    color: theme.accentStrong,
+    textTransform: 'uppercase',
+    letterSpacing: 1.6,
+    fontSize: 10,
+    fontFamily: 'sans-serif-medium',
+  },
+  modalTitle: {
+    fontSize: 20,
+    color: theme.ink,
+    fontFamily: 'serif',
+    marginTop: 4,
+  },
+  modalCloseButton: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    backgroundColor: theme.surfaceMuted,
+    borderWidth: 1,
+    borderColor: theme.border,
+  },
+  modalCloseButtonPressed: {
+    backgroundColor: theme.surface,
+  },
+  modalCloseText: {
+    color: theme.inkSoft,
+    fontSize: 12,
+    fontFamily: 'sans-serif-medium',
+  },
+  modalBody: {
+    flex: 1,
+    backgroundColor: theme.surface,
+  },
+  loginPopup: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: theme.surface,
+    zIndex: 2,
+  },
+  loginPopupHeader: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.border,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  loginPopupTitle: {
+    fontSize: 14,
+    color: theme.ink,
+    fontFamily: 'serif',
+  },
+  webView: {
+    flex: 1,
+    backgroundColor: 'white',
+  },
+  modalOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    alignItems: 'center',
+    justifyContent: 'center',
     gap: 12,
   },
+  modalOverlayText: {
+    fontSize: 13,
+    color: theme.inkSoft,
+    fontFamily: 'sans-serif-medium',
+  },
+  timeline: {
+    gap: 14,
+  },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 17,
     color: theme.ink,
     fontFamily: 'serif',
   },
   tweetCard: {
-    padding: 14,
-    borderRadius: 16,
+    padding: 16,
+    borderRadius: 18,
     backgroundColor: theme.surface,
     borderWidth: 1,
     borderColor: theme.border,
     gap: 10,
+    shadowColor: theme.glow,
+    shadowOpacity: 0.2,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 2,
   },
   tweetHeader: {
     flexDirection: 'row',
@@ -755,18 +1263,19 @@ const styles = StyleSheet.create({
   },
   tweetIndex: {
     fontSize: 12,
-    color: theme.inkSoft,
-    backgroundColor: theme.surfaceMuted,
+    color: theme.accentStrong,
+    backgroundColor: theme.accentSoft,
     borderRadius: 999,
     paddingVertical: 4,
     paddingHorizontal: 10,
     overflow: 'hidden',
+    fontFamily: 'sans-serif-medium',
   },
   tweetMeta: {
     flex: 1,
   },
   tweetUser: {
-    fontSize: 15,
+    fontSize: 16,
     color: theme.ink,
     fontFamily: 'sans-serif-medium',
   },
@@ -776,15 +1285,15 @@ const styles = StyleSheet.create({
   },
   tweetText: {
     fontSize: 14,
-    lineHeight: 20,
+    lineHeight: 21,
     color: theme.inkSoft,
   },
   emptyState: {
     padding: 18,
-    borderRadius: 16,
+    borderRadius: 18,
     borderWidth: 1,
     borderColor: theme.border,
-    backgroundColor: theme.surfaceMuted,
+    backgroundColor: theme.surface,
     gap: 6,
   },
   emptyTitle: {

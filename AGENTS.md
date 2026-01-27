@@ -13,6 +13,8 @@ It is intended to help autonomous coding agents make safe, consistent changes.
 ### Key paths
 
 - `client/App.tsx`: Expo entry point and UI shell.
+- `client/src/services/auth/xLoginSession.ts`: WebView login + cookie resolution.
+- `client/src/services/xHome/xHomeCookies.ts`: Cookie parsing + header helpers.
 - `client/src/services/xHome/`: Timeline fetcher, parsing, and config helpers.
 - `client/src/types/`: Custom module declarations (e.g. `base-64`).
 
@@ -20,8 +22,8 @@ It is intended to help autonomous coding agents make safe, consistent changes.
 
 - Install deps (client): `npm --prefix client install`
 - Environment:
-  - Root `.env` is optional; API keys are entered in the app UI.
-  - Never commit secrets (API keys, cookies, credentials JSON).
+  - Root `.env` is optional; X login is handled in-app via WebView.
+  - Never commit secrets (cookies, credentials JSON, tokens).
 
 ## Build / run / test
 
@@ -110,6 +112,7 @@ All of these commands are run from the repo root unless noted.
 
 - Use the Expo FileSystem download path for requests requiring cookie headers.
 - Keep request constants in `X_HOME_CONFIG` and reuse helpers for URLs/cookies.
+- Do not log cookie values or auth tokens.
 
 ### Pagination contract
 

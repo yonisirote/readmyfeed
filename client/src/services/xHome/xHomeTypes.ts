@@ -1,5 +1,7 @@
+import type { XAuth } from '../feed/feedTypes';
+
 export type XHomeTimelineOptions = {
-  apiKey: string;
+  auth: XAuth;
   count: number;
   cursor?: string;
   log?: (message: string) => void;

@@ -10,7 +10,7 @@ export const fetchXPage = async (
   cursor?: string,
 ): Promise<FeedPage> => {
   const result = await fetchXHomeTimeline({
-    apiKey: auth.apiKey,
+    auth,
     count,
     cursor,
   });

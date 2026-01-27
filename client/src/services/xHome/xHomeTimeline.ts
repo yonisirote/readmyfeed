@@ -1,7 +1,7 @@
 import ClientTransaction from 'x-client-transaction-id';
 import * as FileSystem from 'expo-file-system';
 
-import { decodeApiKeyToCookies } from './xHomeCookies';
+import { buildCookieHeaderFromAuth } from './xHomeCookies';
 import { X_HOME_CONFIG } from './xHomeConfig';
 import { buildGraphqlUrl } from './xHomeTimelineUrl';
 import type { XHomeTimelineOptions, XHomeTimelineResult } from './xHomeTypes';
@@ -61,16 +61,13 @@ export const fetchXHomeTimeline = async (
   options: XHomeTimelineOptions,
 ): Promise<XHomeTimelineResult> => {
   // Orchestrate the HTML probe + GraphQL timeline fetch.
-  const apiKey = options.apiKey.trim();
-  const count = options.count;
-  const cursor = options.cursor;
-  const log = options.log;
+  const { auth, count, cursor, log } = options;
 
   const { baseUrl, defaultBearerToken, defaultHeaders, timelinePath } =
     X_HOME_CONFIG;
 
-  if (!apiKey) {
-    throw new Error('Missing API key.');
+  if (!auth?.authToken || !auth.csrfToken) {
+    throw new Error('Missing X auth tokens.');
   }
 
   if (typeof DOMParser !== 'function') {
@@ -78,7 +75,7 @@ export const fetchXHomeTimeline = async (
   }
 
   const { rawCookieHeader, csrfToken, hasAuthToken, hasKdt, hasTwid } =
-    decodeApiKeyToCookies(apiKey);
+    buildCookieHeaderFromAuth(auth);
 
   log?.(
     `cookie parts auth=${hasAuthToken} kdt=${hasKdt} twid=${hasTwid} csrf=${Boolean(csrfToken)}`,

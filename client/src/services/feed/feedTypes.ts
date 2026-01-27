@@ -1,7 +1,10 @@
 export type FeedSource = 'x' | 'facebook' | 'telegram';
 
 export type XAuth = {
-  apiKey: string;
+  authToken: string;
+  csrfToken: string;
+  kdt?: string;
+  twid?: string;
 };
 
 export type FacebookAuth = Record<string, never>;
