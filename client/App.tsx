@@ -17,7 +17,6 @@ import {
   Platform,
   Pressable,
   SafeAreaView,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -39,17 +38,39 @@ import { SpeechQueueController } from './src/services/tts/speechQueueController'
 
 const TWEET_COUNT = 5;
 
+// ============================================================================
+// THEME - Dark Sleek with Electric Cyan
+// ============================================================================
+
 const theme = {
-  ink: '#0f1c2f',
-  inkSoft: '#43506a',
-  accent: '#1aa39c',
-  accentStrong: '#137d78',
-  accentSoft: 'rgba(26, 163, 156, 0.16)',
-  surface: 'rgba(255, 255, 255, 0.96)',
-  surfaceMuted: 'rgba(240, 244, 250, 0.88)',
-  border: 'rgba(15, 28, 47, 0.1)',
-  error: '#b5443f',
-  glow: 'rgba(26, 163, 156, 0.22)',
+  // Backgrounds - deep charcoal with blue undertones
+  bgDeep: '#06080c',
+  bgPrimary: '#0a0d12',
+  bgElevated: '#12161e',
+  bgCard: '#181d28',
+  bgCardHover: '#1e2433',
+
+  // Accent - electric cyan
+  accent: '#00d4ff',
+  accentMuted: '#0099cc',
+  accentDim: 'rgba(0, 212, 255, 0.15)',
+  accentGlow: 'rgba(0, 212, 255, 0.4)',
+
+  // Text hierarchy
+  textPrimary: '#ffffff',
+  textSecondary: '#9ca3af',
+  textMuted: '#6b7280',
+  textDisabled: '#4b5563',
+
+  // Semantic
+  error: '#ef4444',
+  errorDim: 'rgba(239, 68, 68, 0.15)',
+  success: '#22c55e',
+  successDim: 'rgba(34, 197, 94, 0.15)',
+
+  // Borders
+  border: 'rgba(255, 255, 255, 0.06)',
+  borderAccent: 'rgba(0, 212, 255, 0.3)',
 };
 
 type WebViewHandle = {
@@ -99,7 +120,7 @@ const LOGIN_POPUP_BRIDGE = `
 `;
 
 type FetchStatus = 'idle' | 'loading' | 'ready' | 'error';
-
+type ScreenName = 'home' | 'login' | 'feed';
 
 type FetchMeta = {
   itemsCount: number;
@@ -109,13 +130,11 @@ type FetchMeta = {
 
 const SOURCE_OPTIONS: FeedSource[] = ['x', 'facebook', 'telegram'];
 
-const SOURCE_LABELS: Record<FeedSource, string> = {
-  x: 'X',
-  facebook: 'Facebook',
-  telegram: 'Telegram',
+const SOURCE_CONFIG: Record<FeedSource, { label: string; icon: string; enabled: boolean; tagline: string }> = {
+  x: { label: 'X', icon: '𝕏', enabled: true, tagline: 'Posts from your timeline' },
+  facebook: { label: 'Facebook', icon: 'f', enabled: false, tagline: 'Coming soon' },
+  telegram: { label: 'Telegram', icon: '✈', enabled: false, tagline: 'Coming soon' },
 };
-
-const isSourceEnabled = (source: FeedSource): boolean => source === 'x';
 
 const formatHandle = (handle?: string) => {
   if (!handle) return '@unknown';
@@ -128,39 +147,92 @@ const formatAuthor = (item: FeedItem) => {
   return 'Unknown author';
 };
 
-const truncateText = (text?: string, maxLen = 220) => {
-  if (!text) return '';
-  if (text.length <= maxLen) return text;
-  return `${text.slice(0, maxLen).trim()}…`;
-};
+// ============================================================================
+// MAIN APP COMPONENT
+// ============================================================================
 
 export default function App() {
+  // Navigation state
+  const [screen, setScreen] = useState<ScreenName>('home');
   const [source, setSource] = useState<FeedSource>('x');
+  const screenFadeAnim = useRef(new Animated.Value(1)).current;
+
+  // Auth state
   const [xAuth, setXAuth] = useState<XAuth | null>(null);
   const [loginState, setLoginState] = useState<XLoginState>('idle');
   const [loginError, setLoginError] = useState<string | null>(null);
   const [isLoginVisible, setIsLoginVisible] = useState(false);
+  const [loginPopupUrl, setLoginPopupUrl] = useState<string | null>(null);
+  const loginAttemptRef = useRef(false);
+  const loginWebViewRef = useRef<WebViewHandle | null>(null);
+
+  // Feed state
   const [status, setStatus] = useState<FetchStatus>('idle');
   const [error, setError] = useState<string | null>(null);
   const [items, setItems] = useState<FeedItem[]>([]);
   const [meta, setMeta] = useState<FetchMeta | null>(null);
+  const itemsRef = useRef<FeedItem[]>([]);
+  const paginatorRef = useRef<FeedPaginator | null>(null);
+  const nextCursorRef = useRef<string | undefined>(undefined);
+
+  // TTS state
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [speechError, setSpeechError] = useState<string | null>(null);
   const [isFetchingMore, setIsFetchingMore] = useState(false);
-  const fadeAnim = useRef(new Animated.Value(1)).current;
-  const itemsRef = useRef<FeedItem[]>([]);
-  const paginatorRef = useRef<FeedPaginator | null>(null);
-  const nextCursorRef = useRef<string | undefined>(undefined);
   const currentIndexRef = useRef(0);
   const speechSessionRef = useRef(0);
   const isFetchingMoreRef = useRef(false);
   const speechControllerRef = useRef<SpeechQueueController | null>(null);
   const queueDoneRef = useRef<() => void>(() => {});
   const queueErrorRef = useRef<(error: Error) => void>(() => {});
-  const loginAttemptRef = useRef(false);
-  const loginWebViewRef = useRef<WebViewHandle | null>(null);
-  const [loginPopupUrl, setLoginPopupUrl] = useState<string | null>(null);
+
+  // ============================================================================
+  // NAVIGATION HELPERS
+  // ============================================================================
+
+  const navigateTo = (nextScreen: ScreenName) => {
+    Animated.timing(screenFadeAnim, {
+      toValue: 0,
+      duration: 150,
+      useNativeDriver: true,
+    }).start(() => {
+      setScreen(nextScreen);
+      Animated.timing(screenFadeAnim, {
+        toValue: 1,
+        duration: 200,
+        useNativeDriver: true,
+      }).start();
+    });
+  };
+
+  const handleSourceSelect = (selectedSource: FeedSource) => {
+    if (!SOURCE_CONFIG[selectedSource].enabled) return;
+    
+    setSource(selectedSource);
+    
+    if (selectedSource === 'x') {
+      if (xAuth) {
+        navigateTo('feed');
+        // Auto-fetch if no items yet
+        if (items.length === 0) {
+          setTimeout(() => handleFetch(), 100);
+        }
+      } else {
+        navigateTo('login');
+        handleOpenLogin();
+      }
+    }
+  };
+
+  const handleBackToHome = () => {
+    resetSpeechSession();
+    navigateTo('home');
+  };
+
+  // ============================================================================
+  // TTS HELPERS
+  // ============================================================================
 
   const setFetchingMoreState = (value: boolean) => {
     isFetchingMoreRef.current = value;
@@ -248,6 +320,10 @@ export default function App() {
     });
   }
 
+  // ============================================================================
+  // AUTH EFFECTS AND HANDLERS
+  // ============================================================================
+
   useEffect(() => {
     let isMounted = true;
 
@@ -284,21 +360,6 @@ export default function App() {
     setFetchingMoreState(false);
   };
 
-  const handleSourceSelect = (nextSource: FeedSource) => {
-    if (!isSourceEnabled(nextSource) || nextSource === source) {
-      return;
-    }
-    setSource(nextSource);
-    setStatus('idle');
-    setError(null);
-    setMeta(null);
-    setItems([]);
-    itemsRef.current = [];
-    nextCursorRef.current = undefined;
-    paginatorRef.current = null;
-    resetSpeechSession();
-  };
-
   const handleOpenLogin = () => {
     if (source !== 'x') {
       return;
@@ -315,6 +376,11 @@ export default function App() {
     setLoginPopupUrl(null);
     loginAttemptRef.current = false;
     setLoginState(xAuth ? 'success' : 'idle');
+    
+    // If not logged in after closing, go back to home
+    if (!xAuth && screen === 'login') {
+      navigateTo('home');
+    }
   };
 
   const closeLoginPopup = (shouldReload = false) => {
@@ -393,6 +459,10 @@ export default function App() {
     setIsLoginVisible(false);
     setLoginPopupUrl(null);
     loginAttemptRef.current = false;
+    
+    // Navigate to feed after successful login
+    navigateTo('feed');
+    setTimeout(() => handleFetch(), 100);
   };
 
   const finalizeLogin = async () => {
@@ -455,7 +525,13 @@ export default function App() {
       setLoginError(`Logout cleanup failed: ${message}`);
       setLoginState('error');
     }
+    
+    navigateTo('home');
   };
+
+  // ============================================================================
+  // FEED HANDLERS
+  // ============================================================================
 
   const handleFetch = async () => {
     if (source !== 'x') {
@@ -479,7 +555,6 @@ export default function App() {
     setError(null);
     setItems([]);
     setMeta(null);
-    fadeAnim.setValue(0);
 
     const auth: XAuth = xAuth;
     const paginator = new FeedPaginator({
@@ -501,17 +576,10 @@ export default function App() {
         cursor: page.cursor,
       });
       setStatus('ready');
-
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 450,
-        useNativeDriver: true,
-      }).start();
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       setError(message);
       setStatus('error');
-      fadeAnim.setValue(1);
     }
   };
 
@@ -544,15 +612,36 @@ export default function App() {
     speechControllerRef.current?.resume();
   };
 
+  const handleSkipNext = () => {
+    if (!isSpeaking || items.length === 0) return;
+    
+    const nextIndex = currentIndexRef.current + 1;
+    if (nextIndex < items.length) {
+      speechControllerRef.current?.stop();
+      updateCurrentIndex(nextIndex);
+      speechSessionRef.current += 1;
+      setIsSpeaking(true);
+      speechControllerRef.current?.play(itemsRef.current, nextIndex);
+    }
+  };
+
+  const handleSkipPrev = () => {
+    if (!isSpeaking || items.length === 0) return;
+    
+    const prevIndex = Math.max(0, currentIndexRef.current - 1);
+    speechControllerRef.current?.stop();
+    updateCurrentIndex(prevIndex);
+    speechSessionRef.current += 1;
+    setIsSpeaking(true);
+    speechControllerRef.current?.play(itemsRef.current, prevIndex);
+  };
+
+  // ============================================================================
+  // COMPUTED VALUES
+  // ============================================================================
+
   const hasItems = items.length > 0;
-  const sourceLabel = SOURCE_LABELS[source];
-  const isLoggedIn = Boolean(xAuth);
-  const statusText =
-    status === 'loading'
-      ? `Fetching from ${sourceLabel}...`
-      : status === 'ready'
-        ? 'Feed loaded'
-        : 'Idle';
+  const currentItem = hasItems ? items[currentIndex] : null;
   const canPlay = hasItems && !isSpeaking && status !== 'loading' && !isFetchingMore;
   const canResume =
     hasItems &&
@@ -562,234 +651,396 @@ export default function App() {
     currentIndexRef.current < items.length &&
     !isFetchingMore;
   const canStop = isSpeaking || isFetchingMore;
-  const spokenIndexLabel = hasItems ? Math.min(currentIndex + 1, items.length) : 0;
-  const subtitleText =
-    source === 'x'
-      ? `Log in to X to fetch the first ${TWEET_COUNT} items.`
-      : `Connect a source to fetch the first ${TWEET_COUNT} items.`;
-  const loginStatusText =
-    loginState === 'in_progress'
-      ? 'Checking session...'
-      : loginState === 'error' && !isLoggedIn
-        ? 'Login error'
-        : isLoggedIn
-          ? 'Connected'
-          : 'Not connected';
-  const loginActionLabel = isLoggedIn ? 'Re-login' : 'Login to X';
-  const canLogin = loginState !== 'in_progress';
-  const canLogout = isLoggedIn && loginState !== 'in_progress';
-  const canFetch = isLoggedIn && status !== 'loading';
+  const isLoggedIn = Boolean(xAuth);
+
+  // ============================================================================
+  // RENDER SCREENS
+  // ============================================================================
+
+  const renderHomeScreen = () => (
+    <View style={styles.screenContainer}>
+      {/* Header */}
+      <View style={styles.homeHeader}>
+        <Text style={styles.brandMark}>RMF</Text>
+        <Text style={styles.homeTitle}>ReadMyFeed</Text>
+        <Text style={styles.homeSubtitle}>
+          Listen to your social feeds with text-to-speech
+        </Text>
+      </View>
+
+      {/* Source Cards */}
+      <View style={styles.sourceGrid}>
+        <Text style={styles.sectionLabel}>SELECT A FEED</Text>
+        
+        {SOURCE_OPTIONS.map((sourceKey) => {
+          const config = SOURCE_CONFIG[sourceKey];
+          const isConnected = sourceKey === 'x' && isLoggedIn;
+          
+          return (
+            <Pressable
+              key={sourceKey}
+              onPress={() => handleSourceSelect(sourceKey)}
+              style={({ pressed }) => [
+                styles.sourceCard,
+                !config.enabled && styles.sourceCardDisabled,
+                pressed && config.enabled && styles.sourceCardPressed,
+              ]}
+              disabled={!config.enabled}
+            >
+              <View style={styles.sourceCardContent}>
+                <View style={[
+                  styles.sourceIcon,
+                  !config.enabled && styles.sourceIconDisabled,
+                ]}>
+                  <Text style={[
+                    styles.sourceIconText,
+                    !config.enabled && styles.sourceIconTextDisabled,
+                  ]}>
+                    {config.icon}
+                  </Text>
+                </View>
+                
+                <View style={styles.sourceInfo}>
+                  <View style={styles.sourceNameRow}>
+                    <Text style={[
+                      styles.sourceName,
+                      !config.enabled && styles.sourceNameDisabled,
+                    ]}>
+                      {config.label}
+                    </Text>
+                    {isConnected && (
+                      <View style={styles.connectedBadge}>
+                        <Text style={styles.connectedBadgeText}>Connected</Text>
+                      </View>
+                    )}
+                    {!config.enabled && (
+                      <View style={styles.comingSoonBadge}>
+                        <Text style={styles.comingSoonBadgeText}>Soon</Text>
+                      </View>
+                    )}
+                  </View>
+                  <Text style={[
+                    styles.sourceTagline,
+                    !config.enabled && styles.sourceTaglineDisabled,
+                  ]}>
+                    {config.tagline}
+                  </Text>
+                </View>
+
+                {config.enabled && (
+                  <View style={styles.sourceArrow}>
+                    <Text style={styles.sourceArrowText}>›</Text>
+                  </View>
+                )}
+              </View>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      {/* Footer */}
+      <View style={styles.homeFooter}>
+        <Text style={styles.footerText}>
+          More sources coming soon
+        </Text>
+      </View>
+    </View>
+  );
+
+  const renderLoginScreen = () => (
+    <View style={styles.screenContainer}>
+      {/* Header */}
+      <View style={styles.screenHeader}>
+        <Pressable
+          onPress={handleBackToHome}
+          style={({ pressed }) => [
+            styles.backButton,
+            pressed && styles.backButtonPressed,
+          ]}
+        >
+          <Text style={styles.backButtonText}>‹ Back</Text>
+        </Pressable>
+        
+        <View style={styles.screenHeaderCenter}>
+          <Text style={styles.screenTitle}>Connect to X</Text>
+        </View>
+        
+        <View style={styles.headerSpacer} />
+      </View>
+
+      {/* Login Prompt */}
+      <View style={styles.loginPrompt}>
+        <View style={styles.loginIconLarge}>
+          <Text style={styles.loginIconLargeText}>𝕏</Text>
+        </View>
+        <Text style={styles.loginPromptTitle}>Sign in to X</Text>
+        <Text style={styles.loginPromptDesc}>
+          Connect your X account to read your timeline aloud
+        </Text>
+        
+        <Pressable
+          onPress={handleOpenLogin}
+          style={({ pressed }) => [
+            styles.loginButton,
+            pressed && styles.loginButtonPressed,
+          ]}
+        >
+          <Text style={styles.loginButtonText}>Open X Login</Text>
+        </Pressable>
+
+        {loginError && (
+          <View style={styles.errorBox}>
+            <Text style={styles.errorBoxText}>{loginError}</Text>
+          </View>
+        )}
+      </View>
+    </View>
+  );
+
+  const renderFeedScreen = () => (
+    <View style={styles.screenContainer}>
+      {/* Header */}
+      <View style={styles.screenHeader}>
+        <Pressable
+          onPress={handleBackToHome}
+          style={({ pressed }) => [
+            styles.backButton,
+            pressed && styles.backButtonPressed,
+          ]}
+        >
+          <Text style={styles.backButtonText}>‹ Back</Text>
+        </Pressable>
+        
+        <View style={styles.screenHeaderCenter}>
+          <View style={styles.feedHeaderBrand}>
+            <Text style={styles.feedHeaderIcon}>𝕏</Text>
+            <Text style={styles.screenTitle}>Timeline</Text>
+          </View>
+        </View>
+        
+        <Pressable
+          onPress={handleLogout}
+          style={({ pressed }) => [
+            styles.logoutButton,
+            pressed && styles.logoutButtonPressed,
+          ]}
+        >
+          <Text style={styles.logoutButtonText}>Logout</Text>
+        </Pressable>
+      </View>
+
+      {/* Main Content Area */}
+      <View style={styles.feedContent}>
+        {/* Status / Loading */}
+        {status === 'loading' && (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={theme.accent} />
+            <Text style={styles.loadingText}>Fetching your timeline...</Text>
+          </View>
+        )}
+
+        {/* Error State */}
+        {status === 'error' && error && (
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorTitle}>Something went wrong</Text>
+            <Text style={styles.errorMessage}>{error}</Text>
+            <Pressable
+              onPress={handleFetch}
+              style={({ pressed }) => [
+                styles.retryButton,
+                pressed && styles.retryButtonPressed,
+              ]}
+            >
+              <Text style={styles.retryButtonText}>Try Again</Text>
+            </Pressable>
+          </View>
+        )}
+
+        {/* Empty State */}
+        {status === 'idle' && !hasItems && (
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyIcon}>📡</Text>
+            <Text style={styles.emptyTitle}>Ready to listen</Text>
+            <Text style={styles.emptyDesc}>
+              Tap the button below to fetch your timeline
+            </Text>
+            <Pressable
+              onPress={handleFetch}
+              style={({ pressed }) => [
+                styles.fetchButton,
+                pressed && styles.fetchButtonPressed,
+              ]}
+            >
+              <Text style={styles.fetchButtonText}>Fetch Timeline</Text>
+            </Pressable>
+          </View>
+        )}
+
+        {/* Current Tweet Card - Now Playing Style */}
+        {hasItems && currentItem && status === 'ready' && (
+          <View style={styles.nowPlayingContainer}>
+            {/* Progress Indicator */}
+            <View style={styles.progressRow}>
+              <Text style={styles.progressText}>
+                {currentIndex + 1} of {items.length}
+              </Text>
+              {isFetchingMore && (
+                <Text style={styles.fetchingMoreText}>Loading more...</Text>
+              )}
+            </View>
+
+            {/* Tweet Card */}
+            <View style={[
+              styles.tweetCard,
+              isSpeaking && styles.tweetCardActive,
+            ]}>
+              {/* Author Row */}
+              <View style={styles.tweetAuthorRow}>
+                <View style={styles.tweetAvatar}>
+                  <Text style={styles.tweetAvatarText}>
+                    {(currentItem.authorHandle || currentItem.authorName || 'U')[0].toUpperCase()}
+                  </Text>
+                </View>
+                <View style={styles.tweetAuthorInfo}>
+                  <Text style={styles.tweetAuthorName}>
+                    {currentItem.authorName || 'Unknown'}
+                  </Text>
+                  <Text style={styles.tweetAuthorHandle}>
+                    {formatAuthor(currentItem)}
+                  </Text>
+                </View>
+                {isSpeaking && (
+                  <View style={styles.speakingIndicator}>
+                    <View style={styles.speakingDot} />
+                    <View style={[styles.speakingDot, styles.speakingDotDelayed]} />
+                    <View style={[styles.speakingDot, styles.speakingDotDelayed2]} />
+                  </View>
+                )}
+              </View>
+
+              {/* Tweet Text */}
+              <Text style={styles.tweetText}>
+                {currentItem.text || 'No content'}
+              </Text>
+            </View>
+
+            {/* Playback Controls */}
+            <View style={styles.controlsContainer}>
+              {/* Secondary Controls Row */}
+              <View style={styles.secondaryControls}>
+                <Pressable
+                  onPress={handleSkipPrev}
+                  style={({ pressed }) => [
+                    styles.skipButton,
+                    (!isSpeaking || currentIndex === 0) && styles.controlDisabled,
+                    pressed && isSpeaking && styles.skipButtonPressed,
+                  ]}
+                  disabled={!isSpeaking || currentIndex === 0}
+                >
+                  <Text style={styles.skipButtonText}>⟨⟨</Text>
+                </Pressable>
+
+                {/* Main Play/Stop Button */}
+                {!isSpeaking ? (
+                  <Pressable
+                    onPress={canResume ? handleResume : handlePlayAll}
+                    style={({ pressed }) => [
+                      styles.playButton,
+                      !canPlay && !canResume && styles.controlDisabled,
+                      pressed && (canPlay || canResume) && styles.playButtonPressed,
+                    ]}
+                    disabled={!canPlay && !canResume}
+                  >
+                    <Text style={styles.playButtonText}>▶</Text>
+                  </Pressable>
+                ) : (
+                  <Pressable
+                    onPress={handleStopSpeech}
+                    style={({ pressed }) => [
+                      styles.stopButton,
+                      pressed && styles.stopButtonPressed,
+                    ]}
+                  >
+                    <Text style={styles.stopButtonText}>■</Text>
+                  </Pressable>
+                )}
+
+                <Pressable
+                  onPress={handleSkipNext}
+                  style={({ pressed }) => [
+                    styles.skipButton,
+                    (!isSpeaking || currentIndex >= items.length - 1) && styles.controlDisabled,
+                    pressed && isSpeaking && styles.skipButtonPressed,
+                  ]}
+                  disabled={!isSpeaking || currentIndex >= items.length - 1}
+                >
+                  <Text style={styles.skipButtonText}>⟩⟩</Text>
+                </Pressable>
+              </View>
+
+              {/* Status Text */}
+              <Text style={styles.playbackStatus}>
+                {isSpeaking
+                  ? 'Now reading...'
+                  : canResume
+                    ? 'Tap to resume'
+                    : 'Tap to start reading'}
+              </Text>
+            </View>
+
+            {/* Refresh Button */}
+            <Pressable
+              onPress={handleFetch}
+              style={({ pressed }) => [
+                styles.refreshButton,
+                isFetchingMore && styles.controlDisabled,
+                pressed && !isFetchingMore && styles.refreshButtonPressed,
+              ]}
+              disabled={isFetchingMore}
+            >
+              <Text style={styles.refreshButtonText}>↻ Refresh Feed</Text>
+            </Pressable>
+
+            {/* Speech Error */}
+            {speechError && (
+              <View style={styles.speechErrorBox}>
+                <Text style={styles.speechErrorText}>{speechError}</Text>
+              </View>
+            )}
+
+            {/* Meta Info */}
+            {meta && (
+              <View style={styles.metaRow}>
+                <Text style={styles.metaText}>
+                  {meta.itemsCount} items loaded
+                  {meta.cursor ? ' • More available' : ''}
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
+      </View>
+    </View>
+  );
+
+  // ============================================================================
+  // MAIN RENDER
+  // ============================================================================
 
   return (
     <LinearGradient
-      colors={['#d5f3ef', '#e8f0fb', '#f7f9fd']}
+      colors={[theme.bgDeep, theme.bgPrimary, theme.bgElevated]}
       style={styles.background}
     >
-      <StatusBar style="dark" />
+      <StatusBar style="light" />
       <SafeAreaView style={styles.safeArea}>
-        <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-          <View style={styles.header}>
-            <Text style={styles.eyebrow}>ReadMyFeed</Text>
-            <Text style={styles.title}>Home feed preview</Text>
-            <Text style={styles.subtitle}>{subtitleText}</Text>
-            <View style={styles.headerLine} />
-          </View>
+        <Animated.View style={[styles.animatedContainer, { opacity: screenFadeAnim }]}>
+          {screen === 'home' && renderHomeScreen()}
+          {screen === 'login' && renderLoginScreen()}
+          {screen === 'feed' && renderFeedScreen()}
+        </Animated.View>
 
-          <View style={styles.panel}>
-            <View style={styles.sourceRow}>
-              <Text style={styles.label}>Source</Text>
-              <View style={styles.sourceOptions}>
-                {SOURCE_OPTIONS.map((option) => {
-                  const isEnabled = isSourceEnabled(option);
-                  const isSelected = option === source;
-                  return (
-                    <Pressable
-                      key={option}
-                      onPress={() => handleSourceSelect(option)}
-                      style={({ pressed }) => [
-                        styles.sourceButton,
-                        isSelected && styles.sourceButtonActive,
-                        !isEnabled && styles.sourceButtonDisabled,
-                        pressed && isEnabled && styles.sourceButtonPressed,
-                      ]}
-                      disabled={!isEnabled || status === 'loading'}
-                    >
-                      <Text
-                        style={[
-                          styles.sourceButtonText,
-                          isSelected && styles.sourceButtonTextActive,
-                          !isEnabled && styles.sourceButtonTextDisabled,
-                        ]}
-                      >
-                        {SOURCE_LABELS[option]}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </View>
-
-            <Text style={styles.label}>X session</Text>
-            <View style={styles.authRow}>
-              <View style={[styles.statusPill, styles.authStatusPill]}>
-                <View
-                  style={[
-                    styles.statusDot,
-                    isLoggedIn && styles.statusDotReady,
-                    loginState === 'error' && styles.statusDotError,
-                  ]}
-                />
-                <Text style={styles.statusText}>{loginStatusText}</Text>
-              </View>
-              <Pressable
-                onPress={handleOpenLogin}
-                style={({ pressed }) => [
-                  styles.authButton,
-                  styles.authButtonPrimary,
-                  !canLogin && styles.authButtonDisabled,
-                  pressed && canLogin && styles.authButtonPressedPrimary,
-                ]}
-                disabled={!canLogin}
-              >
-                <Text style={styles.authButtonText}>{loginActionLabel}</Text>
-              </Pressable>
-              {isLoggedIn ? (
-                <Pressable
-                  onPress={handleLogout}
-                  style={({ pressed }) => [
-                    styles.authButton,
-                    styles.authButtonSecondary,
-                    !canLogout && styles.authButtonDisabled,
-                    pressed && canLogout && styles.authButtonPressedSecondary,
-                  ]}
-                  disabled={!canLogout}
-                >
-                  <Text style={styles.authButtonTextSecondary}>Log out</Text>
-                </Pressable>
-              ) : null}
-            </View>
-
-            {loginError ? <Text style={styles.errorText}>{loginError}</Text> : null}
-
-            <View style={styles.buttonRow}>
-              <Pressable
-                onPress={handleFetch}
-                style={({ pressed }) => [
-                  styles.button,
-                  !canFetch && styles.buttonDisabled,
-                  pressed && canFetch && styles.buttonPressed,
-                ]}
-                disabled={!canFetch}
-              >
-                {status === 'loading' ? (
-                  <ActivityIndicator color="white" />
-                ) : (
-                  <Text style={styles.buttonText}>Fetch items</Text>
-                )}
-              </Pressable>
-              <View style={styles.statusPill}>
-                <View
-                  style={[
-                    styles.statusDot,
-                    status === 'ready' && styles.statusDotReady,
-                    status === 'error' && styles.statusDotError,
-                  ]}
-                />
-                <Text style={styles.statusText}>{statusText}</Text>
-              </View>
-            </View>
-
-            <View style={styles.ttsRow}>
-              <Pressable
-                onPress={handlePlayAll}
-                style={({ pressed }) => [
-                  styles.ttsButton,
-                  styles.ttsButtonPrimary,
-                  !canPlay && styles.ttsButtonDisabled,
-                  pressed && canPlay && styles.ttsButtonPressedPrimary,
-                ]}
-                disabled={!canPlay}
-              >
-                <Text style={styles.ttsButtonText}>Play all</Text>
-              </Pressable>
-              <Pressable
-                onPress={handleResume}
-                style={({ pressed }) => [
-                  styles.ttsButton,
-                  styles.ttsButtonSecondary,
-                  !canResume && styles.ttsButtonDisabled,
-                  pressed && canResume && styles.ttsButtonPressedSecondary,
-                ]}
-                disabled={!canResume}
-              >
-                <Text style={styles.ttsButtonTextSecondary}>Resume</Text>
-              </Pressable>
-              <Pressable
-                onPress={handleStopSpeech}
-                style={({ pressed }) => [
-                  styles.ttsButton,
-                  styles.ttsButtonSecondary,
-                  !canStop && styles.ttsButtonDisabled,
-                  pressed && canStop && styles.ttsButtonPressedSecondary,
-                ]}
-                disabled={!canStop}
-              >
-                <Text style={styles.ttsButtonTextSecondary}>Stop</Text>
-              </Pressable>
-            </View>
-
-            {hasItems ? (
-              <Text style={styles.ttsStatus}>
-                {isSpeaking
-                  ? `Reading ${spokenIndexLabel} of ${items.length}`
-                  : `Ready to read ${items.length} items`}
-              </Text>
-            ) : null}
-
-            {isFetchingMore ? <Text style={styles.ttsStatus}>Fetching more items...</Text> : null}
-
-            {speechError ? <Text style={styles.errorText}>{speechError}</Text> : null}
-
-            {error ? <Text style={styles.errorText}>{error}</Text> : null}
-
-            {meta ? (
-              <View style={styles.metaRow}>
-                <Text style={styles.metaText}>Items: {meta.itemsCount}</Text>
-                <Text style={styles.metaText}>
-                  Raw: {meta.rawCount !== undefined ? meta.rawCount : 'n/a'}
-                </Text>
-                <Text style={styles.metaText} numberOfLines={1}>
-                  Cursor: {meta.cursor ? 'set' : 'none'}
-                </Text>
-              </View>
-            ) : null}
-          </View>
-
-          <Animated.View style={[styles.timeline, { opacity: fadeAnim }]}>
-            <Text style={styles.sectionTitle}>Feed samples</Text>
-            {hasItems ? (
-              items.map((item, index) => (
-                <View key={`${item.id}_${index}`} style={styles.tweetCard}>
-                  <View style={styles.tweetHeader}>
-                    <Text style={styles.tweetIndex}>{String(index + 1).padStart(2, '0')}</Text>
-                    <View style={styles.tweetMeta}>
-                      <Text style={styles.tweetUser}>{formatAuthor(item)}</Text>
-                      <Text style={styles.tweetId} numberOfLines={1}>
-                        {item.id || 'missing id'}
-                      </Text>
-                    </View>
-                  </View>
-                  <Text style={styles.tweetText}>{truncateText(item.text)}</Text>
-                </View>
-              ))
-            ) : (
-              <View style={styles.emptyState}>
-                <Text style={styles.emptyTitle}>No items yet</Text>
-                <Text style={styles.emptyBody}>Fetch the feed to see a preview here.</Text>
-              </View>
-            )}
-          </Animated.View>
-        </ScrollView>
+        {/* Login Modal - Preserved from original */}
         <Modal
           visible={isLoginVisible}
           animationType="slide"
@@ -798,7 +1049,7 @@ export default function App() {
           <SafeAreaView style={styles.modalContainer}>
             <View style={styles.modalHeader}>
               <View>
-                <Text style={styles.modalEyebrow}>X session</Text>
+                <Text style={styles.modalEyebrow}>X SESSION</Text>
                 <Text style={styles.modalTitle}>Sign in to X</Text>
               </View>
               <Pressable
@@ -878,331 +1129,679 @@ export default function App() {
   );
 }
 
+// ============================================================================
+// STYLES
+// ============================================================================
+
 const styles = StyleSheet.create({
+  // Layout
   background: {
     flex: 1,
   },
   safeArea: {
     flex: 1,
   },
-  scrollContent: {
-    paddingHorizontal: 22,
-    paddingVertical: 30,
-    gap: 24,
+  animatedContainer: {
+    flex: 1,
   },
-  header: {
-    gap: 8,
+  screenContainer: {
+    flex: 1,
+    paddingHorizontal: 20,
   },
-  eyebrow: {
-    color: theme.accentStrong,
-    textTransform: 'uppercase',
-    letterSpacing: 1.6,
-    fontSize: 11,
-    fontFamily: 'sans-serif-medium',
-    backgroundColor: theme.accentSoft,
-    alignSelf: 'flex-start',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 999,
+
+  // ============================================================================
+  // HOME SCREEN
+  // ============================================================================
+  
+  homeHeader: {
+    paddingTop: 40,
+    paddingBottom: 32,
+    alignItems: 'center',
   },
-  title: {
-    fontSize: 32,
-    color: theme.ink,
-    fontFamily: 'serif',
-    letterSpacing: -0.3,
+  brandMark: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: theme.accent,
+    letterSpacing: 4,
+    marginBottom: 16,
   },
-  subtitle: {
+  homeTitle: {
+    fontSize: 36,
+    fontWeight: '300',
+    color: theme.textPrimary,
+    letterSpacing: -0.5,
+    marginBottom: 8,
+  },
+  homeSubtitle: {
     fontSize: 15,
-    color: theme.inkSoft,
+    color: theme.textSecondary,
+    textAlign: 'center',
     lineHeight: 22,
   },
-  headerLine: {
-    width: 56,
-    height: 3,
-    backgroundColor: theme.accent,
-    borderRadius: 999,
+
+  // Source Grid
+  sourceGrid: {
+    flex: 1,
+    gap: 12,
   },
-  panel: {
-    padding: 18,
-    borderRadius: 20,
-    backgroundColor: theme.surface,
-    borderWidth: 1,
-    borderColor: theme.border,
-    gap: 14,
-    shadowColor: theme.glow,
-    shadowOpacity: 0.3,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 4,
-  },
-  label: {
+  sectionLabel: {
     fontSize: 11,
-    color: theme.inkSoft,
-    textTransform: 'uppercase',
-    letterSpacing: 1.4,
+    fontWeight: '600',
+    color: theme.textMuted,
+    letterSpacing: 1.5,
+    marginBottom: 8,
+    marginLeft: 4,
   },
-  sourceRow: {
-    gap: 8,
-  },
-  sourceOptions: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  sourceButton: {
-    paddingVertical: 7,
-    paddingHorizontal: 14,
-    borderRadius: 999,
+  sourceCard: {
+    backgroundColor: theme.bgCard,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: theme.border,
-    backgroundColor: theme.surface,
+    overflow: 'hidden',
   },
-  sourceButtonActive: {
-    backgroundColor: theme.accent,
-    borderColor: theme.accent,
+  sourceCardDisabled: {
+    opacity: 0.5,
   },
-  sourceButtonDisabled: {
-    opacity: 0.45,
+  sourceCardPressed: {
+    backgroundColor: theme.bgCardHover,
+    borderColor: theme.borderAccent,
   },
-  sourceButtonPressed: {
-    backgroundColor: theme.accentSoft,
-  },
-  sourceButtonText: {
-    fontSize: 12,
-    color: theme.inkSoft,
-    fontFamily: 'sans-serif-medium',
-  },
-  sourceButtonTextActive: {
-    color: 'white',
-  },
-  sourceButtonTextDisabled: {
-    color: theme.inkSoft,
-  },
-  authRow: {
+  sourceCardContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 10,
+    padding: 16,
+    gap: 16,
   },
-  authStatusPill: {
-    flexGrow: 1,
-    flexBasis: 160,
-  },
-  authButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 14,
+  sourceIcon: {
+    width: 52,
+    height: 52,
     borderRadius: 12,
+    backgroundColor: theme.accentDim,
     alignItems: 'center',
-    minWidth: 120,
+    justifyContent: 'center',
   },
-  authButtonPrimary: {
-    backgroundColor: theme.accent,
-    shadowColor: theme.glow,
-    shadowOpacity: 0.25,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 2,
+  sourceIconDisabled: {
+    backgroundColor: theme.bgElevated,
   },
-  authButtonSecondary: {
-    backgroundColor: theme.surfaceMuted,
-    borderWidth: 1,
-    borderColor: theme.border,
+  sourceIconText: {
+    fontSize: 24,
+    color: theme.accent,
+    fontWeight: '700',
   },
-  authButtonDisabled: {
-    opacity: 0.6,
+  sourceIconTextDisabled: {
+    color: theme.textDisabled,
   },
-  authButtonPressedPrimary: {
-    backgroundColor: theme.accentStrong,
+  sourceInfo: {
+    flex: 1,
+    gap: 4,
   },
-  authButtonPressedSecondary: {
-    backgroundColor: theme.surface,
+  sourceNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
-  authButtonText: {
-    color: 'white',
+  sourceName: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: theme.textPrimary,
+  },
+  sourceNameDisabled: {
+    color: theme.textDisabled,
+  },
+  sourceTagline: {
     fontSize: 13,
-    fontFamily: 'sans-serif-medium',
+    color: theme.textSecondary,
   },
-  authButtonTextSecondary: {
-    color: theme.inkSoft,
-    fontSize: 13,
-    fontFamily: 'sans-serif-medium',
+  sourceTaglineDisabled: {
+    color: theme.textDisabled,
   },
-  buttonRow: {
+  connectedBadge: {
+    backgroundColor: theme.successDim,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  connectedBadgeText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: theme.success,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  comingSoonBadge: {
+    backgroundColor: theme.bgElevated,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  comingSoonBadgeText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: theme.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  sourceArrow: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sourceArrowText: {
+    fontSize: 24,
+    color: theme.textMuted,
+    fontWeight: '300',
+  },
+
+  // Footer
+  homeFooter: {
+    paddingVertical: 24,
+    alignItems: 'center',
+  },
+  footerText: {
+    fontSize: 12,
+    color: theme.textMuted,
+  },
+
+  // ============================================================================
+  // SCREEN HEADER (shared)
+  // ============================================================================
+  
+  screenHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 12,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.border,
+    marginBottom: 16,
   },
-  button: {
-    backgroundColor: theme.accent,
-    paddingVertical: 13,
-    paddingHorizontal: 18,
-    borderRadius: 16,
-    minWidth: 140,
-    alignItems: 'center',
-    shadowColor: theme.glow,
-    shadowOpacity: 0.35,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 3,
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  buttonPressed: {
-    backgroundColor: theme.accentStrong,
-  },
-  buttonText: {
-    color: 'white',
-    fontSize: 16,
-    fontFamily: 'sans-serif-medium',
-  },
-  ttsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  ttsButton: {
+  screenHeaderCenter: {
     flex: 1,
-    paddingVertical: 11,
-    paddingHorizontal: 12,
-    borderRadius: 14,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'transparent',
   },
-  ttsButtonPrimary: {
-    backgroundColor: theme.accent,
-    shadowColor: theme.glow,
-    shadowOpacity: 0.25,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 2,
+  screenTitle: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: theme.textPrimary,
   },
-  ttsButtonSecondary: {
-    backgroundColor: theme.surfaceMuted,
-    borderColor: theme.border,
+  headerSpacer: {
+    width: 60,
   },
-  ttsButtonDisabled: {
-    opacity: 0.55,
-  },
-  ttsButtonPressedPrimary: {
-    backgroundColor: theme.accentStrong,
-  },
-  ttsButtonPressedSecondary: {
-    backgroundColor: theme.surface,
-  },
-  ttsButtonText: {
-    color: 'white',
-    fontSize: 14,
-    fontFamily: 'sans-serif-medium',
-  },
-  ttsButtonTextSecondary: {
-    color: theme.inkSoft,
-    fontSize: 14,
-    fontFamily: 'sans-serif-medium',
-  },
-  ttsStatus: {
-    fontSize: 12,
-    color: theme.inkSoft,
-  },
-  statusPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: theme.surface,
-    paddingHorizontal: 12,
+  backButton: {
     paddingVertical: 8,
-    borderRadius: 999,
-    gap: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: theme.bgCard,
+  },
+  backButtonPressed: {
+    backgroundColor: theme.bgCardHover,
+  },
+  backButtonText: {
+    fontSize: 15,
+    color: theme.textSecondary,
+    fontWeight: '500',
+  },
+
+  // ============================================================================
+  // LOGIN SCREEN
+  // ============================================================================
+  
+  loginPrompt: {
     flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+    gap: 16,
+  },
+  loginIconLarge: {
+    width: 88,
+    height: 88,
+    borderRadius: 22,
+    backgroundColor: theme.accentDim,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  loginIconLargeText: {
+    fontSize: 44,
+    color: theme.accent,
+    fontWeight: '700',
+  },
+  loginPromptTitle: {
+    fontSize: 26,
+    fontWeight: '600',
+    color: theme.textPrimary,
+  },
+  loginPromptDesc: {
+    fontSize: 15,
+    color: theme.textSecondary,
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 8,
+  },
+  loginButton: {
+    backgroundColor: theme.accent,
+    paddingVertical: 16,
+    paddingHorizontal: 48,
+    borderRadius: 14,
+    marginTop: 8,
+  },
+  loginButtonPressed: {
+    backgroundColor: theme.accentMuted,
+  },
+  loginButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.bgDeep,
+  },
+  errorBox: {
+    backgroundColor: theme.errorDim,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    marginTop: 16,
+  },
+  errorBoxText: {
+    fontSize: 13,
+    color: theme.error,
+    textAlign: 'center',
+  },
+
+  // ============================================================================
+  // FEED SCREEN
+  // ============================================================================
+  
+  feedHeaderBrand: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  feedHeaderIcon: {
+    fontSize: 18,
+    color: theme.accent,
+    fontWeight: '700',
+  },
+  logoutButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: theme.bgCard,
+  },
+  logoutButtonPressed: {
+    backgroundColor: theme.bgCardHover,
+  },
+  logoutButtonText: {
+    fontSize: 13,
+    color: theme.textMuted,
+    fontWeight: '500',
+  },
+
+  feedContent: {
+    flex: 1,
+  },
+
+  // Loading State
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 16,
+  },
+  loadingText: {
+    fontSize: 15,
+    color: theme.textSecondary,
+  },
+
+  // Error State
+  errorContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    paddingHorizontal: 24,
+  },
+  errorTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: theme.textPrimary,
+  },
+  errorMessage: {
+    fontSize: 14,
+    color: theme.error,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  retryButton: {
+    backgroundColor: theme.bgCard,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: theme.border,
+    marginTop: 8,
+  },
+  retryButtonPressed: {
+    backgroundColor: theme.bgCardHover,
+  },
+  retryButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: theme.textPrimary,
+  },
+
+  // Empty State
+  emptyContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    paddingHorizontal: 24,
+  },
+  emptyIcon: {
+    fontSize: 48,
+    marginBottom: 8,
+  },
+  emptyTitle: {
+    fontSize: 22,
+    fontWeight: '600',
+    color: theme.textPrimary,
+  },
+  emptyDesc: {
+    fontSize: 15,
+    color: theme.textSecondary,
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  fetchButton: {
+    backgroundColor: theme.accent,
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+    borderRadius: 12,
+    marginTop: 8,
+  },
+  fetchButtonPressed: {
+    backgroundColor: theme.accentMuted,
+  },
+  fetchButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: theme.bgDeep,
+  },
+
+  // Now Playing Container
+  nowPlayingContainer: {
+    flex: 1,
+    gap: 20,
+  },
+  progressRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  progressText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: theme.accent,
+    letterSpacing: 0.5,
+  },
+  fetchingMoreText: {
+    fontSize: 12,
+    color: theme.textMuted,
+  },
+
+  // Tweet Card
+  tweetCard: {
+    backgroundColor: theme.bgCard,
+    borderRadius: 20,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: theme.border,
+    gap: 20,
+    minHeight: 200,
+  },
+  tweetCardActive: {
+    borderColor: theme.accent,
+    shadowColor: theme.accent,
+    shadowOpacity: 0.2,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 8,
+  },
+  tweetAuthorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+  },
+  tweetAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: theme.accentDim,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tweetAvatarText: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: theme.accent,
+  },
+  tweetAuthorInfo: {
+    flex: 1,
+    gap: 2,
+  },
+  tweetAuthorName: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: theme.textPrimary,
+  },
+  tweetAuthorHandle: {
+    fontSize: 14,
+    color: theme.textMuted,
+  },
+  speakingIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  speakingDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: theme.accent,
+    opacity: 0.8,
+  },
+  speakingDotDelayed: {
+    opacity: 0.5,
+  },
+  speakingDotDelayed2: {
+    opacity: 0.3,
+  },
+  tweetText: {
+    fontSize: 18,
+    lineHeight: 28,
+    color: theme.textPrimary,
+    fontWeight: '400',
+  },
+
+  // Playback Controls
+  controlsContainer: {
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 8,
+  },
+  secondaryControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 24,
+  },
+  skipButton: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: theme.bgCard,
+    borderWidth: 1,
+    borderColor: theme.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  skipButtonPressed: {
+    backgroundColor: theme.bgCardHover,
+  },
+  skipButtonText: {
+    fontSize: 18,
+    color: theme.textSecondary,
+    fontWeight: '600',
+  },
+  playButton: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: theme.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: theme.accent,
+    shadowOpacity: 0.4,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 8,
+  },
+  playButtonPressed: {
+    backgroundColor: theme.accentMuted,
+  },
+  playButtonText: {
+    fontSize: 28,
+    color: theme.bgDeep,
+    marginLeft: 4,
+  },
+  stopButton: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: theme.bgCard,
+    borderWidth: 2,
+    borderColor: theme.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stopButtonPressed: {
+    backgroundColor: theme.bgCardHover,
+  },
+  stopButtonText: {
+    fontSize: 22,
+    color: theme.accent,
+  },
+  controlDisabled: {
+    opacity: 0.4,
+  },
+  playbackStatus: {
+    fontSize: 13,
+    color: theme.textMuted,
+  },
+
+  // Refresh Button
+  refreshButton: {
+    alignSelf: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 10,
+    backgroundColor: theme.bgCard,
     borderWidth: 1,
     borderColor: theme.border,
   },
-  statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 999,
-    backgroundColor: theme.inkSoft,
+  refreshButtonPressed: {
+    backgroundColor: theme.bgCardHover,
+    borderColor: theme.borderAccent,
   },
-  statusDotReady: {
-    backgroundColor: theme.accent,
+  refreshButtonText: {
+    fontSize: 14,
+    color: theme.textSecondary,
+    fontWeight: '500',
   },
-  statusDotError: {
-    backgroundColor: theme.error,
+
+  // Speech Error
+  speechErrorBox: {
+    backgroundColor: theme.errorDim,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 8,
   },
-  statusText: {
-    fontSize: 12,
-    color: theme.inkSoft,
-  },
-  errorText: {
-    color: theme.error,
+  speechErrorText: {
     fontSize: 13,
+    color: theme.error,
+    textAlign: 'center',
   },
+
+  // Meta
   metaRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
+    alignItems: 'center',
   },
   metaText: {
     fontSize: 12,
-    color: theme.inkSoft,
+    color: theme.textMuted,
   },
+
+  // ============================================================================
+  // LOGIN MODAL (preserved with dark styling)
+  // ============================================================================
+  
   modalContainer: {
     flex: 1,
-    backgroundColor: theme.surface,
+    backgroundColor: theme.bgPrimary,
   },
   modalHeader: {
-    paddingHorizontal: 22,
+    paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
     borderBottomColor: theme.border,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    backgroundColor: theme.bgElevated,
   },
   modalErrorText: {
     color: theme.error,
     fontSize: 12,
-    paddingHorizontal: 22,
-    paddingBottom: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    backgroundColor: theme.errorDim,
   },
   modalEyebrow: {
-    color: theme.accentStrong,
-    textTransform: 'uppercase',
-    letterSpacing: 1.6,
+    color: theme.accent,
     fontSize: 10,
-    fontFamily: 'sans-serif-medium',
+    fontWeight: '600',
+    letterSpacing: 1.5,
   },
   modalTitle: {
-    fontSize: 20,
-    color: theme.ink,
-    fontFamily: 'serif',
+    fontSize: 18,
+    fontWeight: '600',
+    color: theme.textPrimary,
     marginTop: 4,
   },
   modalCloseButton: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 999,
-    backgroundColor: theme.surfaceMuted,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    backgroundColor: theme.bgCard,
     borderWidth: 1,
     borderColor: theme.border,
   },
   modalCloseButtonPressed: {
-    backgroundColor: theme.surface,
+    backgroundColor: theme.bgCardHover,
   },
   modalCloseText: {
-    color: theme.inkSoft,
-    fontSize: 12,
-    fontFamily: 'sans-serif-medium',
+    color: theme.textSecondary,
+    fontSize: 13,
+    fontWeight: '500',
   },
   modalBody: {
     flex: 1,
-    backgroundColor: theme.surface,
+    backgroundColor: theme.bgPrimary,
   },
   loginPopup: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: theme.surface,
+    backgroundColor: theme.bgPrimary,
     zIndex: 2,
   },
   loginPopupHeader: {
@@ -1213,96 +1812,27 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    backgroundColor: theme.bgElevated,
   },
   loginPopupTitle: {
     fontSize: 14,
-    color: theme.ink,
-    fontFamily: 'serif',
+    fontWeight: '600',
+    color: theme.textPrimary,
   },
   webView: {
     flex: 1,
-    backgroundColor: 'white',
+    backgroundColor: '#ffffff',
   },
   modalOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    backgroundColor: 'rgba(6, 8, 12, 0.95)',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 12,
   },
   modalOverlayText: {
-    fontSize: 13,
-    color: theme.inkSoft,
-    fontFamily: 'sans-serif-medium',
-  },
-  timeline: {
-    gap: 14,
-  },
-  sectionTitle: {
-    fontSize: 17,
-    color: theme.ink,
-    fontFamily: 'serif',
-  },
-  tweetCard: {
-    padding: 16,
-    borderRadius: 18,
-    backgroundColor: theme.surface,
-    borderWidth: 1,
-    borderColor: theme.border,
-    gap: 10,
-    shadowColor: theme.glow,
-    shadowOpacity: 0.2,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 2,
-  },
-  tweetHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  tweetIndex: {
-    fontSize: 12,
-    color: theme.accentStrong,
-    backgroundColor: theme.accentSoft,
-    borderRadius: 999,
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    overflow: 'hidden',
-    fontFamily: 'sans-serif-medium',
-  },
-  tweetMeta: {
-    flex: 1,
-  },
-  tweetUser: {
-    fontSize: 16,
-    color: theme.ink,
-    fontFamily: 'sans-serif-medium',
-  },
-  tweetId: {
-    fontSize: 11,
-    color: theme.inkSoft,
-  },
-  tweetText: {
     fontSize: 14,
-    lineHeight: 21,
-    color: theme.inkSoft,
-  },
-  emptyState: {
-    padding: 18,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: theme.border,
-    backgroundColor: theme.surface,
-    gap: 6,
-  },
-  emptyTitle: {
-    fontSize: 15,
-    color: theme.ink,
-    fontFamily: 'serif',
-  },
-  emptyBody: {
-    fontSize: 13,
-    color: theme.inkSoft,
+    color: theme.textSecondary,
+    fontWeight: '500',
   },
 });
