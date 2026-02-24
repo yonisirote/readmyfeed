@@ -67,7 +67,9 @@ export default function XLoginScreen() {
     <SafeAreaView style={styles.root}>
       <View style={styles.header}>
         <Text style={styles.title}>Connect X</Text>
-        <Text style={styles.subtitle}>Log in to X to connect your session.</Text>
+        <Text style={styles.subtitle}>
+          Log in using your X username/email and password. Google/SSO is not supported.
+        </Text>
       </View>
 
       <View style={styles.webViewContainer}>
