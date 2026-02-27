@@ -1,7 +1,4 @@
 export const X_BASE_URL = 'https://x.com';
-export const X_ALT_BASE_URL = 'https://twitter.com';
-export const X_ALLOWED_ORIGINS = [X_BASE_URL, X_ALT_BASE_URL] as const;
-export const X_COOKIE_DOMAINS = [X_BASE_URL, X_ALT_BASE_URL] as const;
 export const X_LOGIN_URL = 'https://x.com/i/flow/login';
 
 export const REQUIRED_X_COOKIES = ['auth_token', 'ct0', 'twid'] as const;

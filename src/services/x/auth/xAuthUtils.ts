@@ -4,7 +4,6 @@ import {
   COOKIE_ORDER,
   OPTIONAL_X_COOKIES,
   REQUIRED_X_COOKIES,
-  X_ALLOWED_ORIGINS,
   X_BASE_URL,
   X_LOGIN_URL,
   POST_LOGIN_PATH_HINTS,
@@ -28,7 +27,7 @@ export const looksLikeLoggedInUrl = (url?: string | null): boolean => {
 
   try {
     const parsed = new URL(url);
-    if (!X_ALLOWED_ORIGINS.includes(parsed.origin as (typeof X_ALLOWED_ORIGINS)[number])) {
+    if (parsed.origin !== X_BASE_URL) {
       return false;
     }
 
@@ -111,5 +110,5 @@ export const isXBaseUrl = (url?: string | null): boolean => {
   if (!url) {
     return false;
   }
-  return X_ALLOWED_ORIGINS.some((origin) => url.startsWith(origin));
+  return url.startsWith(X_BASE_URL);
 };

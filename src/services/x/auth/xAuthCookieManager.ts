@@ -1,13 +1,13 @@
 import CookieManager from '@preeternal/react-native-cookie-manager';
 
-import { X_BASE_URL, X_COOKIE_DOMAINS } from './xAuthConstants';
+import { X_BASE_URL } from './xAuthConstants';
 import { X_AUTH_ERROR_CODES, XAuthError } from './xAuthErrors';
 import { XAuthLogger } from './xAuthLogger';
 import { XCookieReadResult, XCookieRecord } from './xAuthTypes';
 import { evaluateCookies, normalizeCookieRecord } from './xAuthUtils';
 
 export type XCookieReadOptions = {
-  useWebKit?: boolean;
+  useWebViewStore?: boolean;
   fallbackToShared?: boolean;
   logger?: XAuthLogger;
 };
@@ -15,29 +15,21 @@ export type XCookieReadOptions = {
 export const readXCookies = async (
   options: XCookieReadOptions = {},
 ): Promise<XCookieReadResult> => {
-  const { useWebKit = true, fallbackToShared = true, logger } = options;
-  logger?.info('Reading X cookies', { domains: X_COOKIE_DOMAINS, useWebKit });
+  const { useWebViewStore = true, fallbackToShared = true, logger } = options;
+  logger?.info('Reading X cookies', { domain: X_BASE_URL, useWebViewStore });
 
   try {
-    const normalizedByDomain: XCookieRecord = {};
-    for (const domain of X_COOKIE_DOMAINS) {
-      const cookieJar = await CookieManager.get(domain, useWebKit);
-      const normalized = normalizeCookieRecord(cookieJar as Record<string, unknown>);
-      Object.assign(normalizedByDomain, normalized);
-    }
+    const cookieJar = await CookieManager.get(X_BASE_URL, useWebViewStore);
+    const normalizedByDomain = normalizeCookieRecord(cookieJar as Record<string, unknown>);
 
     let result = evaluateCookies(normalizedByDomain);
 
-    if (!result.hasRequired && fallbackToShared && useWebKit) {
-      logger?.warn('Missing required cookies in WebKit store. Trying shared store.', {
+    if (!result.hasRequired && fallbackToShared && useWebViewStore) {
+      logger?.warn('Missing required cookies in WebView store. Trying shared store.', {
         missingRequired: result.missingRequired,
       });
-      const sharedCookies: XCookieRecord = {};
-      for (const domain of X_COOKIE_DOMAINS) {
-        const sharedJar = await CookieManager.get(domain, false);
-        const normalized = normalizeCookieRecord(sharedJar as Record<string, unknown>);
-        Object.assign(sharedCookies, normalized);
-      }
+      const sharedJar = await CookieManager.get(X_BASE_URL, false);
+      const sharedCookies = normalizeCookieRecord(sharedJar as Record<string, unknown>);
       const merged = { ...sharedCookies, ...normalizedByDomain };
       result = evaluateCookies(merged);
       logger?.info('Merged cookies from shared store', {
@@ -66,11 +58,11 @@ export const readXCookies = async (
 };
 
 export const clearXCookies = async (options: XCookieReadOptions = {}): Promise<void> => {
-  const { useWebKit = true, logger } = options;
-  logger?.warn('Clearing X cookies', { baseUrl: X_BASE_URL, useWebKit });
+  const { useWebViewStore = true, logger } = options;
+  logger?.warn('Clearing X cookies', { baseUrl: X_BASE_URL, useWebViewStore });
 
   try {
-    await CookieManager.clearAll(useWebKit);
+    await CookieManager.clearAll(useWebViewStore);
     if (typeof CookieManager.flush === 'function') {
       await CookieManager.flush();
     }

@@ -7,7 +7,7 @@ import { createSessionFromCookies, looksLikeLoggedInUrl } from './xAuthUtils';
 
 export type XAuthServiceOptions = {
   logger?: XAuthLogger;
-  useWebKit?: boolean;
+  useWebViewStore?: boolean;
   store?: XAuthSessionStore;
 };
 
@@ -18,12 +18,12 @@ export type XAuthCaptureResult = {
 
 export class XAuthService {
   private readonly logger: XAuthLogger;
-  private readonly useWebKit: boolean;
+  private readonly useWebViewStore: boolean;
   private readonly store: XAuthSessionStore;
 
   public constructor(options: XAuthServiceOptions = {}) {
     this.logger = options.logger ?? createXAuthLogger();
-    this.useWebKit = options.useWebKit ?? true;
+    this.useWebViewStore = options.useWebViewStore ?? true;
     this.store = options.store ?? createXAuthSessionStore(this.logger);
   }
 
@@ -36,7 +36,10 @@ export class XAuthService {
   public async captureSession(): Promise<XAuthCaptureResult> {
     this.logger.info('Attempting to capture X session');
 
-    const cookieResult = await readXCookies({ useWebKit: this.useWebKit, logger: this.logger });
+    const cookieResult = await readXCookies({
+      useWebViewStore: this.useWebViewStore,
+      logger: this.logger,
+    });
 
     if (!cookieResult.hasRequired) {
       this.logger.warn('Missing required X cookies', {
