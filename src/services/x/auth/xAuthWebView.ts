@@ -3,13 +3,17 @@ import type { WebViewNavigation } from 'react-native-webview';
 import { X_AUTH_ERROR_CODES, XAuthError } from './xAuthErrors';
 import { XAuthLogger } from './xAuthLogger';
 import { XAuthLoginState } from './xAuthTypes';
-import { looksLikeLoggedInUrl, isXBaseUrl } from './xAuthUtils';
+import { looksLikeLoggedInUrl } from './xAuthUtils';
 
 export type XWebViewDecision = {
   state: XAuthLoginState;
   shouldCapture: boolean;
 };
 
+// No equivalent in Rettiwt-API — Rettiwt-API authenticates via HTTP requests
+// (guest token POST or pre-supplied cookie strings). This module handles the
+// React Native WebView login flow, detecting post-login navigation to decide
+// when to capture cookies.
 export const evaluateXWebViewNavigation = (
   navState: WebViewNavigation,
   logger?: XAuthLogger,
@@ -20,7 +24,6 @@ export const evaluateXWebViewNavigation = (
   }
 
   const isLoggedInHint = looksLikeLoggedInUrl(navState.url);
-  const inScope = isXBaseUrl(navState.url);
 
   logger?.debug('WebView navigation update', {
     url: navState.url,
@@ -28,14 +31,13 @@ export const evaluateXWebViewNavigation = (
     loading: navState.loading,
     canGoBack: navState.canGoBack,
     isLoggedInHint,
-    inScope,
   });
 
   return {
     state: {
-      isLoggedInHint: isLoggedInHint && inScope,
+      isLoggedInHint,
       url: navState.url,
     },
-    shouldCapture: isLoggedInHint && inScope,
+    shouldCapture: isLoggedInHint,
   };
 };

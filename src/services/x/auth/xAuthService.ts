@@ -16,6 +16,11 @@ export type XAuthCaptureResult = {
   cookieResult: XCookieReadResult;
 };
 
+// Analogous to Rettiwt-API's AuthService (services/internal/AuthService.ts).
+// Changes: Rettiwt-API's AuthService handles guest-token login via axios POST and
+// base64 cookie encoding/decoding. This version captures cookies from a WebView login
+// flow instead, stores them in expo-secure-store, and uses dependency-injected logger
+// and session store rather than a RettiwtConfig object.
 export class XAuthService {
   private readonly logger: XAuthLogger;
   private readonly useWebViewStore: boolean;
@@ -64,7 +69,7 @@ export class XAuthService {
       });
     }
 
-    await this.store.set(session.encodedCookie);
+    await this.store.set(session.cookieString);
     return session;
   }
 

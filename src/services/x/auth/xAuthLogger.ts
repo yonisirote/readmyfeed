@@ -21,6 +21,10 @@ const formatPayload = (payload?: LogPayload) => {
   }
 };
 
+// Inspired by Rettiwt-API's LogService (services/internal/LogService.ts).
+// Changes: supports multiple log levels (debug/info/warn/error) with structured payloads
+// instead of a single log() with enum-based actions; uses injectable logger instances
+// instead of a static class with a global enabled flag.
 const emit = (level: XAuthLogLevel, message: string, payload?: LogPayload) => {
   const prefix = `[XAuth][${level.toUpperCase()}]`;
   const line = `${prefix} ${message}${formatPayload(payload)}`;

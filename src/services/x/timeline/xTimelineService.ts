@@ -1,7 +1,5 @@
 import { XAuthService } from '../auth/xAuthService';
 import { createXAuthLogger, XAuthLogger } from '../auth/xAuthLogger';
-import { decodeCookieString } from '../auth/xAuthUtils';
-
 import { parseXFollowingTimelineResponse } from './xTimelineParser';
 import { X_TIMELINE_ERROR_CODES, XTimelineError } from './xTimelineErrors';
 import { XFollowingTimelineBatch } from './xTimelineTypes';
@@ -157,25 +155,15 @@ export class XTimelineService {
       return cookieString;
     }
 
-    const encodedCookie = await this.authService.loadStoredSession();
-    if (!encodedCookie) {
+    const storedCookieString = await this.authService.loadStoredSession();
+    if (!storedCookieString) {
       throw new XTimelineError(
         'No X session found. Please connect your account again.',
         X_TIMELINE_ERROR_CODES.SessionMissing,
       );
     }
 
-    try {
-      return decodeCookieString(encodedCookie);
-    } catch (err) {
-      throw new XTimelineError(
-        'Stored X session is invalid. Please reconnect your account.',
-        X_TIMELINE_ERROR_CODES.CookieInvalid,
-        {
-          cause: err instanceof Error ? err.message : String(err),
-        },
-      );
-    }
+    return storedCookieString;
   }
 
   public async fetchFollowingTimeline(

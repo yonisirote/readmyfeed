@@ -7,10 +7,14 @@ const SESSION_KEY = 'x-auth-session';
 
 export type XAuthSessionStore = {
   get: () => Promise<string | null>;
-  set: (encodedCookie: string) => Promise<void>;
+  set: (cookieString: string) => Promise<void>;
   clear: () => Promise<void>;
 };
 
+// No direct equivalent in Rettiwt-API — Rettiwt-API stores credentials in memory
+// via AuthCredential and encodes/decodes them as base64 API keys (AuthService.encodeCookie /
+// decodeCookie). This module persists the cookie string to expo-secure-store for
+// mobile session persistence across app restarts.
 export const createXAuthSessionStore = (logger?: XAuthLogger): XAuthSessionStore => {
   const get = async () => {
     try {
@@ -27,10 +31,10 @@ export const createXAuthSessionStore = (logger?: XAuthLogger): XAuthSessionStore
     }
   };
 
-  const set = async (encodedCookie: string) => {
+  const set = async (cookieString: string) => {
     try {
-      await SecureStore.setItemAsync(SESSION_KEY, encodedCookie);
-      logger?.info('Stored X session in SecureStore', { length: encodedCookie.length });
+      await SecureStore.setItemAsync(SESSION_KEY, cookieString);
+      logger?.info('Stored X session in SecureStore', { length: cookieString.length });
     } catch (err) {
       logger?.error('Failed to store X session in SecureStore', {
         error: err instanceof Error ? err.message : String(err),

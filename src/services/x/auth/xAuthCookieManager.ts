@@ -12,6 +12,11 @@ export type XCookieReadOptions = {
   logger?: XAuthLogger;
 };
 
+// Cookie reading logic based on Rettiwt-API's AuthCookie constructor (models/auth/AuthCookie.ts)
+// and AuthCredential (models/auth/AuthCredential.ts) which parse cookies from a Cookie[] array.
+// Change: reads cookies from react-native-cookie-manager (WebView/shared stores) instead of
+// the cookiejar library, adds fallback from WebView store to shared store, and returns a
+// result object with missing-cookie diagnostics instead of silently accepting empty values.
 export const readXCookies = async (
   options: XCookieReadOptions = {},
 ): Promise<XCookieReadResult> => {

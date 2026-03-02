@@ -1,3 +1,6 @@
+// Inspired by Rettiwt-API's TwitterError (models/errors/TwitterError.ts).
+// Change: simplified — uses a string error code + optional context record instead of
+// Rettiwt-API's HTTP-status-based error with AxiosError parsing and detail arrays.
 export class XAuthError extends Error {
   public readonly code: string;
   public readonly context?: Record<string, unknown>;

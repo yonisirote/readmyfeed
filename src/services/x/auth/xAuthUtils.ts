@@ -1,5 +1,3 @@
-import { encode as encodeBase64, decode as decodeBase64 } from 'base-64';
-
 import {
   COOKIE_ORDER,
   OPTIONAL_X_COOKIES,
@@ -37,6 +35,9 @@ export const looksLikeLoggedInUrl = (url?: string | null): boolean => {
   }
 };
 
+// Based on Rettiwt-API's AuthCookie constructor (models/auth/AuthCookie.ts), which parses
+// Cookie[] objects by name. Change: accepts a generic record (from react-native-cookie-manager)
+// and normalizes both plain strings and {value: string} shapes into a flat record.
 export const normalizeCookieRecord = (cookies: Record<string, unknown>): XCookieRecord => {
   const out: XCookieRecord = {};
   for (const [key, value] of Object.entries(cookies)) {
@@ -65,6 +66,9 @@ export const evaluateCookies = (cookies: XCookieRecord): XCookieReadResult => {
   };
 };
 
+// Based on Rettiwt-API's AuthCookie.toString() (models/auth/AuthCookie.ts).
+// Change: iterates a fixed COOKIE_ORDER instead of Object.entries, validates
+// required cookies before building, and uses "; " delimiters instead of ";".
 export const buildCookieString = (cookies: XCookieRecord): string => {
   const missingRequired = REQUIRED_X_COOKIES.filter((name) => !cookies[name]);
   if (missingRequired.length > 0) {
@@ -88,27 +92,10 @@ export const buildCookieString = (cookies: XCookieRecord): string => {
   return `${parts.join('; ')};`;
 };
 
-export const encodeCookieString = (cookieString: string): string => {
-  return encodeBase64(cookieString);
-};
-
-export const decodeCookieString = (encodedCookie: string): string => {
-  return decodeBase64(encodedCookie);
-};
-
 export const createSessionFromCookies = (cookies: XCookieRecord): XAuthSession => {
   const cookieString = buildCookieString(cookies);
-  const encodedCookie = encodeCookieString(cookieString);
   return {
     cookieString,
-    encodedCookie,
     cookieNames: Object.keys(cookies),
   };
-};
-
-export const isXBaseUrl = (url?: string | null): boolean => {
-  if (!url) {
-    return false;
-  }
-  return url.startsWith(X_BASE_URL);
 };
