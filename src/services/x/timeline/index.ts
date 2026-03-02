@@ -3,6 +3,7 @@ export { parseXFollowingTimelineResponse } from './xTimelineParser';
 export { XTimelineError, X_TIMELINE_ERROR_CODES } from './xTimelineErrors';
 export {
   getXFollowingTimelineBatch,
+  loadXFollowingTimelineBatch,
   setXFollowingTimelineBatch,
   clearXFollowingTimelineBatch,
 } from './xTimelineStore';

@@ -8,7 +8,7 @@ import {
   createXAuthDiagnostics,
   createXAuthLogger,
   evaluateXWebViewNavigation,
-  X_AUTH_ERROR_CODES,
+  xAuthErrorCodes,
   XAuthError,
   XAuthService,
   X_ALLOWED_ORIGINS,
@@ -48,28 +48,38 @@ const LOGIN_BRIDGE_SCRIPT = String.raw`(function () {
   }
 
   function notify() {
-    post('url', {
-      href: window.location ? window.location.href : '',
-      title: document && document.title ? document.title : '',
-    });
+    try {
+      post('url', {
+        href: window.location ? window.location.href : '',
+        title: document && document.title ? document.title : '',
+      });
+    } catch (err) {}
   }
 
   if (window.history && window.history.pushState) {
-    var originalPushState = window.history.pushState;
-    window.history.pushState = function () {
-      var result = originalPushState.apply(this, arguments);
-      notify();
-      return result;
-    };
+    try {
+      var originalPushState = window.history.pushState;
+      window.history.pushState = function () {
+        try {
+          var result = originalPushState.apply(this, arguments);
+          notify();
+          return result;
+        } catch (err) {}
+      };
+    } catch (err) {}
   }
 
   if (window.history && window.history.replaceState) {
-    var originalReplaceState = window.history.replaceState;
-    window.history.replaceState = function () {
-      var result = originalReplaceState.apply(this, arguments);
-      notify();
-      return result;
-    };
+    try {
+      var originalReplaceState = window.history.replaceState;
+      window.history.replaceState = function () {
+        try {
+          var result = originalReplaceState.apply(this, arguments);
+          notify();
+          return result;
+        } catch (err) {}
+      };
+    } catch (err) {}
   }
 
   window.addEventListener('popstate', notify);
@@ -122,7 +132,7 @@ export default function XLoginScreen() {
   const captureInFlight = useRef(false);
   const didCapture = useRef(false);
 
-  const applyTimelineBatch = (batch: XFollowingTimelineBatch) => {
+  const applyTimelineBatch = async (batch: XFollowingTimelineBatch) => {
     logger.info('Received following timeline batch', {
       count: batch.items.length,
       hasNextCursor: Boolean(batch.nextCursor),
@@ -134,7 +144,13 @@ export default function XLoginScreen() {
       return;
     }
 
-    setXFollowingTimelineBatch(batch);
+    try {
+      await setXFollowingTimelineBatch(batch);
+    } catch (err) {
+      logger.warn('Failed to persist timeline batch', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
     setStatus('done');
     router.replace('/(auth)/x-feed');
   };
@@ -147,7 +163,7 @@ export default function XLoginScreen() {
         cookieString,
       });
 
-      applyTimelineBatch(batch);
+      await applyTimelineBatch(batch);
     } catch (err) {
       if (err instanceof XTimelineError) {
         logger.warn('X timeline fetch error', {
@@ -178,7 +194,7 @@ export default function XLoginScreen() {
         if (
           attempt < maxAttempts &&
           err instanceof XAuthError &&
-          err.code === X_AUTH_ERROR_CODES.CookieMissingRequired
+          err.code === xAuthErrorCodes.CookieMissingRequired
         ) {
           logger.debug('Cookie capture retry', {
             attempt,
@@ -192,10 +208,7 @@ export default function XLoginScreen() {
         throw err;
       }
     }
-    throw new XAuthError(
-      'Cookie capture exhausted retries',
-      X_AUTH_ERROR_CODES.CookieMissingRequired,
-    );
+    throw new XAuthError('Cookie capture exhausted retries', xAuthErrorCodes.CookieMissingRequired);
   };
 
   const completeCaptureAndLoadTimeline = async ({
@@ -233,7 +246,7 @@ export default function XLoginScreen() {
       if (
         !strict &&
         err instanceof XAuthError &&
-        err.code === X_AUTH_ERROR_CODES.CookieMissingRequired
+        err.code === xAuthErrorCodes.CookieMissingRequired
       ) {
         logger.debug('Capture fallback skipped: cookies not ready yet', {
           reason,

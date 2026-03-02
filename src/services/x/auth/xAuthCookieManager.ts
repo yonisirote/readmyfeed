@@ -1,7 +1,7 @@
 import CookieManager from '@preeternal/react-native-cookie-manager';
 
 import { X_BASE_URL } from './xAuthConstants';
-import { X_AUTH_ERROR_CODES, XAuthError } from './xAuthErrors';
+import { xAuthErrorCodes, XAuthError } from './xAuthErrors';
 import { XAuthLogger } from './xAuthLogger';
 import { XCookieReadResult, XCookieRecord } from './xAuthTypes';
 import { evaluateCookies, normalizeCookieRecord } from './xAuthUtils';
@@ -56,7 +56,7 @@ export const readXCookies = async (
     logger?.error('Failed to read X cookies', {
       error: err instanceof Error ? err.message : String(err),
     });
-    throw new XAuthError('Failed to read cookies', X_AUTH_ERROR_CODES.CookieReadFailed, {
+    throw new XAuthError('Failed to read cookies', xAuthErrorCodes.CookieReadFailed, {
       cause: err instanceof Error ? err.message : String(err),
     });
   }
@@ -76,7 +76,7 @@ export const clearXCookies = async (options: XCookieReadOptions = {}): Promise<v
     logger?.error('Failed to clear X cookies', {
       error: err instanceof Error ? err.message : String(err),
     });
-    throw new XAuthError('Failed to clear cookies', X_AUTH_ERROR_CODES.CookieReadFailed, {
+    throw new XAuthError('Failed to clear cookies', xAuthErrorCodes.CookieReadFailed, {
       cause: err instanceof Error ? err.message : String(err),
     });
   }

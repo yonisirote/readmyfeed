@@ -1,4 +1,4 @@
-import { X_AUTH_ERROR_CODES, XAuthError } from './xAuthErrors';
+import { xAuthErrorCodes, XAuthError } from './xAuthErrors';
 import { createXAuthLogger, XAuthLogger } from './xAuthLogger';
 import { readXCookies } from './xAuthCookieManager';
 import { createXAuthSessionStore, XAuthSessionStore } from './xAuthSessionStore';
@@ -63,7 +63,7 @@ export class XAuthService {
     const { session, cookieResult } = await this.captureSession();
 
     if (!session) {
-      throw new XAuthError('Missing required cookies', X_AUTH_ERROR_CODES.CookieMissingRequired, {
+      throw new XAuthError('Missing required cookies', xAuthErrorCodes.CookieMissingRequired, {
         missingRequired: cookieResult.missingRequired,
         missingOptional: cookieResult.missingOptional,
       });

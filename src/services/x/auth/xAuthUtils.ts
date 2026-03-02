@@ -6,7 +6,7 @@ import {
   X_LOGIN_URL,
   POST_LOGIN_PATH_HINTS,
 } from './xAuthConstants';
-import { X_AUTH_ERROR_CODES, XAuthError } from './xAuthErrors';
+import { xAuthErrorCodes, XAuthError } from './xAuthErrors';
 import { XAuthSession, XCookieReadResult, XCookieRecord } from './xAuthTypes';
 
 const sanitizeCookieValue = (value: string) => value.trim();
@@ -72,7 +72,7 @@ export const evaluateCookies = (cookies: XCookieRecord): XCookieReadResult => {
 export const buildCookieString = (cookies: XCookieRecord): string => {
   const missingRequired = REQUIRED_X_COOKIES.filter((name) => !cookies[name]);
   if (missingRequired.length > 0) {
-    throw new XAuthError('Missing required cookies', X_AUTH_ERROR_CODES.CookieMissingRequired, {
+    throw new XAuthError('Missing required cookies', xAuthErrorCodes.CookieMissingRequired, {
       missingRequired,
     });
   }
@@ -86,7 +86,7 @@ export const buildCookieString = (cookies: XCookieRecord): string => {
   }
 
   if (parts.length === 0) {
-    throw new XAuthError('Empty cookie string', X_AUTH_ERROR_CODES.CookieStringInvalid);
+    throw new XAuthError('Empty cookie string', xAuthErrorCodes.CookieStringInvalid);
   }
 
   return `${parts.join('; ')};`;

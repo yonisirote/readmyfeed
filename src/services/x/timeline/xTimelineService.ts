@@ -4,14 +4,17 @@ import { parseXFollowingTimelineResponse } from './xTimelineParser';
 import { X_TIMELINE_ERROR_CODES, XTimelineError } from './xTimelineErrors';
 import { XFollowingTimelineBatch } from './xTimelineTypes';
 
+// From Rettiwt-API's UserRequests.followed() (src/requests/User.ts) — same endpoint URL.
 const FOLLOWING_TIMELINE_URL =
   'https://x.com/i/api/graphql/_qO7FJzShSKYWi9gtboE6A/HomeLatestTimeline';
 
+// From Rettiwt-API's AuthCredential constructor (src/models/auth/AuthCredential.ts) — same token.
 const X_WEB_AUTH_BEARER_TOKEN =
   'AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA';
 
 const DEFAULT_BATCH_SIZE = 40;
 
+// From Rettiwt-API's UserRequests.followed() features object (src/requests/User.ts) — identical.
 const FOLLOWING_FEATURES = {
   rweb_video_screen_enabled: false,
   profile_label_improvements_pcf_label_in_post_enabled: true,
@@ -61,6 +64,8 @@ export type XTimelineServiceOptions = {
   fetchImpl?: typeof fetch;
 };
 
+// New — Rettiwt-API uses the 'cookiejar' library (AuthCookie class) to parse cookies.
+// This is a simpler inline parser since we only need to extract ct0 for the CSRF token.
 const parseCookieString = (cookieString: string): Record<string, string> => {
   const cookies: Record<string, string> = {};
 
@@ -86,6 +91,10 @@ const parseCookieString = (cookieString: string): Record<string, string> => {
   return cookies;
 };
 
+// Based on Rettiwt-API's UserRequests.followed() (src/requests/User.ts).
+// Same variables (count, includePromotedContent, latestControlAvailable, withCommunity, cursor)
+// and features. Changed: builds the URL string directly instead of returning an AxiosRequestConfig,
+// since this codebase uses native fetch instead of Axios.
 const buildFollowingTimelineUrl = ({
   count,
   cursor,
@@ -111,6 +120,11 @@ const buildFollowingTimelineUrl = ({
   return `${FOLLOWING_TIMELINE_URL}?${params.toString()}`;
 };
 
+// Based on Rettiwt-API's AuthCredential.toHeader() (src/models/auth/AuthCredential.ts) and
+// DefaultHeaders (src/models/RettiwtConfig.ts). Same bearer token, cookie, x-csrf-token pattern.
+// Changed: adds referer, x-twitter-active-user, x-twitter-auth-type, x-twitter-client-language
+// inline instead of splitting across AuthCredential + DefaultHeaders + RettiwtConfig.
+// Drops User-Agent, Authority, Accept-Language, Cache-Control that Rettiwt-API sets.
 const buildHeaders = ({
   cookieString,
   csrfToken,
@@ -139,6 +153,9 @@ const summarizeBody = (body: string): string => {
   return `${trimmed.slice(0, 240)}...`;
 };
 
+// New — Rettiwt-API exposes timeline fetching via Rettiwt.user.following(). This service
+// replaces that with a simpler class using native fetch, DI for testability, and direct
+// cookie-string auth instead of Rettiwt-API's apiKey/Cookie[] flow.
 export class XTimelineService {
   private readonly logger: XAuthLogger;
   private readonly authService: XAuthService;

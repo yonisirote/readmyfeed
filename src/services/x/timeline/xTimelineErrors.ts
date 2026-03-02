@@ -1,3 +1,5 @@
+// New — not from Rettiwt-API. Rettiwt-API uses generic RettiwtError / HTTP status handling.
+// This provides timeline-specific error codes for the app's UI layer.
 export class XTimelineError extends Error {
   public readonly code: string;
   public readonly context?: Record<string, unknown>;

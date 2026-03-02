@@ -1,19 +1,21 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, SafeAreaView, StyleSheet, Text, View } from 'react-native';
 
 import {
   clearXFollowingTimelineBatch,
-  getXFollowingTimelineBatch,
+  loadXFollowingTimelineBatch,
   XFollowingTimelineBatch,
   XTimelineItem,
 } from '../../src/services/x/timeline';
 
 export default function XFeedScreen() {
   const [batch, setBatch] = useState<XFollowingTimelineBatch | null>(null);
+  const [items, setItems] = useState<XTimelineItem[]>([]);
 
-  const items = useMemo<XTimelineItem[]>(() => {
+  useEffect(() => {
     if (!batch?.items) {
-      return [];
+      setItems((prev) => (prev.length === 0 ? prev : []));
+      return;
     }
 
     const unique = new Map<string, XTimelineItem>();
@@ -24,15 +26,38 @@ export default function XFeedScreen() {
       unique.set(item.id, item);
     }
 
-    return Array.from(unique.values());
+    const nextItems = Array.from(unique.values());
+    setItems((prev) => {
+      if (prev.length === nextItems.length) {
+        let isSame = true;
+        for (let i = 0; i < nextItems.length; i += 1) {
+          if (prev[i]?.id !== nextItems[i]?.id) {
+            isSame = false;
+            break;
+          }
+        }
+        if (isSame) {
+          return prev;
+        }
+      }
+      return nextItems;
+    });
   }, [batch]);
 
   useEffect(() => {
-    const cached = getXFollowingTimelineBatch();
-    if (cached) {
-      setBatch(cached);
-      clearXFollowingTimelineBatch();
-    }
+    const loadBatch = async () => {
+      try {
+        const cached = await loadXFollowingTimelineBatch();
+        if (cached) {
+          setBatch(cached);
+          await clearXFollowingTimelineBatch();
+        }
+      } catch {
+        // Ignore cache hydration failures and keep the loading state.
+      }
+    };
+
+    void loadBatch();
   }, []);
 
   return (

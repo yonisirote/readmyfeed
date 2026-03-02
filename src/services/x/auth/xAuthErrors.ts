@@ -13,7 +13,7 @@ export class XAuthError extends Error {
   }
 }
 
-export const X_AUTH_ERROR_CODES = {
+export const xAuthErrorCodes = {
   CookieReadFailed: 'X_AUTH_COOKIE_READ_FAILED',
   CookieMissingRequired: 'X_AUTH_COOKIE_MISSING_REQUIRED',
   CookieStringInvalid: 'X_AUTH_COOKIE_STRING_INVALID',

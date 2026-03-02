@@ -1,6 +1,6 @@
 import type { WebViewNavigation } from 'react-native-webview';
 
-import { X_AUTH_ERROR_CODES, XAuthError } from './xAuthErrors';
+import { xAuthErrorCodes, XAuthError } from './xAuthErrors';
 import { XAuthLogger } from './xAuthLogger';
 import { XAuthLoginState } from './xAuthTypes';
 import { looksLikeLoggedInUrl } from './xAuthUtils';
@@ -20,7 +20,7 @@ export const evaluateXWebViewNavigation = (
 ): XWebViewDecision => {
   if (!navState?.url) {
     logger?.warn('WebView navigation missing URL');
-    throw new XAuthError('WebView URL missing', X_AUTH_ERROR_CODES.WebViewNotReady);
+    throw new XAuthError('WebView URL missing', xAuthErrorCodes.WebViewNotReady);
   }
 
   const isLoggedInHint = looksLikeLoggedInUrl(navState.url);

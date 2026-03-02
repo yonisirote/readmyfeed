@@ -1,5 +1,10 @@
 export const X_BASE_URL = 'https://x.com';
 export const X_LOGIN_URL = 'https://x.com/i/flow/login';
+export const X_ALLOWED_ORIGINS = [
+  X_BASE_URL,
+  'https://twitter.com',
+  'https://mobile.twitter.com',
+] as const;
 
 // Cookie names derived from Rettiwt-API's IAuthCookie interface (types/auth/AuthCookie.ts)
 // and AuthCookie model (models/auth/AuthCookie.ts).

@@ -1,6 +1,6 @@
 import * as SecureStore from 'expo-secure-store';
 
-import { X_AUTH_ERROR_CODES, XAuthError } from './xAuthErrors';
+import { xAuthErrorCodes, XAuthError } from './xAuthErrors';
 import { XAuthLogger } from './xAuthLogger';
 
 const SESSION_KEY = 'x-auth-session';
@@ -25,7 +25,7 @@ export const createXAuthSessionStore = (logger?: XAuthLogger): XAuthSessionStore
       logger?.error('Failed to load X session from SecureStore', {
         error: err instanceof Error ? err.message : String(err),
       });
-      throw new XAuthError('Failed to read SecureStore', X_AUTH_ERROR_CODES.SecureStoreFailed, {
+      throw new XAuthError('Failed to read SecureStore', xAuthErrorCodes.SecureStoreFailed, {
         cause: err instanceof Error ? err.message : String(err),
       });
     }
@@ -39,7 +39,7 @@ export const createXAuthSessionStore = (logger?: XAuthLogger): XAuthSessionStore
       logger?.error('Failed to store X session in SecureStore', {
         error: err instanceof Error ? err.message : String(err),
       });
-      throw new XAuthError('Failed to write SecureStore', X_AUTH_ERROR_CODES.SecureStoreFailed, {
+      throw new XAuthError('Failed to write SecureStore', xAuthErrorCodes.SecureStoreFailed, {
         cause: err instanceof Error ? err.message : String(err),
       });
     }
@@ -53,7 +53,7 @@ export const createXAuthSessionStore = (logger?: XAuthLogger): XAuthSessionStore
       logger?.error('Failed to clear X session in SecureStore', {
         error: err instanceof Error ? err.message : String(err),
       });
-      throw new XAuthError('Failed to delete SecureStore', X_AUTH_ERROR_CODES.SecureStoreFailed, {
+      throw new XAuthError('Failed to delete SecureStore', xAuthErrorCodes.SecureStoreFailed, {
         cause: err instanceof Error ? err.message : String(err),
       });
     }

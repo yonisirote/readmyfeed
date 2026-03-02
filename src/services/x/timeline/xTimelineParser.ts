@@ -5,6 +5,10 @@ import {
   XTimelineMediaType,
 } from './xTimelineTypes';
 
+// Helpers below (isRecord, asRecord, asString, asNumber, toIsoDate) are new — Rettiwt-API
+// uses TypeScript interfaces/casts on the raw JSON instead. These exist because this codebase
+// treats the API response as `unknown` and validates at runtime rather than casting.
+
 const isRecord = (value: unknown): value is Record<string, unknown> => {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 };
@@ -30,6 +34,8 @@ const asNumber = (value: unknown): number => {
   return 0;
 };
 
+// Rettiwt-API does `new Date(tweet.legacy.created_at).toISOString()` inline in the Tweet
+// constructor. This is the same logic extracted into a safe helper with NaN-checking.
 const toIsoDate = (rawDate: unknown): string => {
   if (typeof rawDate !== 'string') {
     return '';
@@ -43,31 +49,60 @@ const toIsoDate = (rawDate: unknown): string => {
   return parsed.toISOString();
 };
 
+// Taken from Rettiwt-API's findByFilter (src/helper/JsonUtils.ts).
+// Same recursive deep-search logic. Changed: accepts `unknown` instead of `NonNullable<unknown>`
+// and uses isRecord guard instead of raw typeof checks for stricter runtime safety.
+// Added: soft node/collection limits to prevent pathological deep scans on mobile.
+const MAX_FILTER_MATCHES = 1000;
+const MAX_FILTER_NODES = 15000;
+
 const findByFilter = <T>(data: unknown, key: string, value: string): T[] => {
-  let result: T[] = [];
+  const result: T[] = [];
+  let visitedNodes = 0;
 
-  if (Array.isArray(data)) {
-    for (const item of data) {
-      result = result.concat(findByFilter<T>(item, key, value));
+  const visit = (node: unknown) => {
+    if (visitedNodes >= MAX_FILTER_NODES || result.length >= MAX_FILTER_MATCHES) {
+      return;
     }
-    return result;
-  }
 
-  if (!isRecord(data)) {
-    return result;
-  }
+    visitedNodes += 1;
 
-  if (Object.prototype.hasOwnProperty.call(data, key) && data[key] === value) {
-    result.push(data as unknown as T);
-  }
+    if (Array.isArray(node)) {
+      for (const item of node) {
+        visit(item);
+        if (visitedNodes >= MAX_FILTER_NODES || result.length >= MAX_FILTER_MATCHES) {
+          return;
+        }
+      }
+      return;
+    }
 
-  for (const valueOfKey of Object.values(data)) {
-    result = result.concat(findByFilter<T>(valueOfKey, key, value));
-  }
+    if (!isRecord(node)) {
+      return;
+    }
 
+    if (Object.prototype.hasOwnProperty.call(node, key) && node[key] === value) {
+      result.push(node as unknown as T);
+      if (result.length >= MAX_FILTER_MATCHES) {
+        return;
+      }
+    }
+
+    for (const valueOfKey of Object.values(node)) {
+      visit(valueOfKey);
+      if (visitedNodes >= MAX_FILTER_NODES || result.length >= MAX_FILTER_MATCHES) {
+        return;
+      }
+    }
+  };
+
+  visit(data);
   return result;
 };
 
+// Maps raw X API media type strings to XTimelineMediaType.
+// Rettiwt-API uses RawMediaType enum -> MediaType enum mapping in TweetMedia constructor.
+// Changed: keeps the raw string values directly and adds 'unknown' fallback.
 const mediaTypeFromRaw = (value: unknown): XTimelineMediaType => {
   if (value === 'photo' || value === 'video' || value === 'animated_gif') {
     return value;
@@ -76,6 +111,11 @@ const mediaTypeFromRaw = (value: unknown): XTimelineMediaType => {
   return 'unknown';
 };
 
+// Based on Rettiwt-API's TweetMedia constructor (src/models/data/Tweet.ts TweetMedia).
+// Same approach: photos use media_url_https, videos pick the highest-bitrate mp4 variant.
+// Changed: also checks content_type for 'mp4' (Rettiwt-API only checks bitrate).
+// GIFs are not special-cased (Rettiwt-API picks variants[0] for GIFs); instead they go
+// through the same best-bitrate loop, which works because GIFs typically have one variant.
 const extractBestMediaUrl = (
   media: Record<string, unknown>,
 ): { url: string; thumbnailUrl?: string } => {
@@ -121,6 +161,10 @@ const extractBestMediaUrl = (
   };
 };
 
+// Based on Rettiwt-API's Tweet constructor media extraction:
+//   `tweet.legacy.extended_entities?.media?.map(m => new TweetMedia(m))`
+// Same source path (legacy.extended_entities.media). Changed: adds expandedUrl field,
+// filters out entries with no url and no expandedUrl, and conditionally sets thumbnailUrl.
 const extractMedia = (legacy: Record<string, unknown>): XTimelineMedia[] => {
   const extendedEntities = asRecord(legacy.extended_entities);
   const mediaEntries = Array.isArray(extendedEntities?.media) ? extendedEntities.media : [];
@@ -155,6 +199,12 @@ const extractMedia = (legacy: Record<string, unknown>): XTimelineMedia[] => {
     .filter((media): media is XTimelineMedia => media !== null);
 };
 
+// Based on Rettiwt-API's Tweet.timeline() + Tweet constructor (src/models/data/Tweet.ts).
+// The TweetWithVisibilityResults handling mirrors Rettiwt-API's _getQuotedTweet/_getRetweetedTweet.
+// Changed: returns a flat XTimelineItem instead of a Tweet class instance.
+// Extracts isRetweet/isQuote as booleans instead of nesting full quoted/retweeted Tweet objects.
+// Uses note_tweet for long-form text the same way as Rettiwt-API's Tweet constructor.
+// URL construction matches Rettiwt-API: `https://x.com/${userName}/status/${id}`.
 const extractTweet = (timelineTweetNode: unknown): XTimelineItem | null => {
   const timelineRecord = asRecord(timelineTweetNode);
   const tweetResults = asRecord(timelineRecord?.tweet_results);
@@ -164,6 +214,7 @@ const extractTweet = (timelineTweetNode: unknown): XTimelineItem | null => {
     return null;
   }
 
+  // From Rettiwt-API: handles TweetWithVisibilityResults by unwrapping to .tweet
   if (result.__typename === 'TweetWithVisibilityResults') {
     result = asRecord(result.tweet);
   }
@@ -178,16 +229,19 @@ const extractTweet = (timelineTweetNode: unknown): XTimelineItem | null => {
     return null;
   }
 
+  // From Rettiwt-API Tweet constructor: prefers note_tweet text over legacy.full_text
   const noteTweet = asRecord(result.note_tweet);
   const noteTweetResults = asRecord(noteTweet?.note_tweet_results);
   const noteTweetResult = asRecord(noteTweetResults?.result);
 
+  // From Rettiwt-API: user info extracted via core.user_results.result
   const core = asRecord(result.core);
   const userResults = asRecord(core?.user_results);
   const userResult = asRecord(userResults?.result);
   const userLegacy = asRecord(userResult?.legacy);
   const authorHandle = asString(userLegacy?.screen_name);
 
+  // From Rettiwt-API _getQuotedTweet / _getRetweetedTweet — simplified to boolean flags
   const quotedStatusResult = asRecord(result.quoted_status_result);
   const quotedResult = asRecord(quotedStatusResult?.result);
   const retweetedStatusResult = asRecord(legacy.retweeted_status_result);
@@ -221,6 +275,11 @@ const extractTweet = (timelineTweetNode: unknown): XTimelineItem | null => {
   };
 };
 
+// Based on Rettiwt-API's Tweet.timeline() + CursoredData constructor (src/models/data/CursoredData.ts).
+// Tweet extraction uses findByFilter(__typename, 'TimelineTweet') — same as Rettiwt-API.
+// Cursor extraction uses findByFilter(cursorType, 'Bottom') — same as Rettiwt-API.
+// Changed: added deduplication by tweet id (not in Rettiwt-API). Returns null instead of
+// empty string when no next cursor exists.
 export const parseXFollowingTimelineResponse = (payload: unknown): XFollowingTimelineBatch => {
   const timelineTweetNodes = findByFilter<unknown>(payload, '__typename', 'TimelineTweet');
   const deduped = new Map<string, XTimelineItem>();
