@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, SafeAreaView, StyleSheet, Text, View } from 'react-native';
 import { WebView } from 'react-native-webview';
-import type { WebViewMessageEvent, WebViewNavigation } from 'react-native-webview';
+import type { WebViewNavigation } from 'react-native-webview';
 import { useRouter } from 'expo-router';
 
 import {
@@ -14,7 +14,6 @@ import {
   X_ALLOWED_ORIGINS,
   X_LOGIN_URL,
 } from '../../src/services/x/auth';
-import { looksLikeLoggedInUrl } from '../../src/services/x/auth/xAuthUtils';
 import {
   setXFollowingTimelineBatch,
   XTimelineError,
@@ -24,96 +23,6 @@ import type { XFollowingTimelineBatch } from '../../src/services/x/timeline';
 
 const logger = createXAuthLogger();
 const diagnostics = createXAuthDiagnostics(logger);
-
-const LOGIN_BRIDGE_SOURCE = 'readmyfeed-x-login';
-const LOGIN_BRIDGE_SCRIPT = String.raw`(function () {
-  if (window.__rmfXLoginBridgeInstalled) {
-    return true;
-  }
-
-  window.__rmfXLoginBridgeInstalled = true;
-
-  var SOURCE = 'readmyfeed-x-login';
-
-  function post(type, payload) {
-    try {
-      window.ReactNativeWebView.postMessage(
-        JSON.stringify({
-          source: SOURCE,
-          type: type,
-          payload: payload || {},
-        }),
-      );
-    } catch (err) {}
-  }
-
-  function notify() {
-    try {
-      post('url', {
-        href: window.location ? window.location.href : '',
-        title: document && document.title ? document.title : '',
-      });
-    } catch (err) {}
-  }
-
-  if (window.history && window.history.pushState) {
-    try {
-      var originalPushState = window.history.pushState;
-      window.history.pushState = function () {
-        try {
-          var result = originalPushState.apply(this, arguments);
-          notify();
-          return result;
-        } catch (err) {}
-      };
-    } catch (err) {}
-  }
-
-  if (window.history && window.history.replaceState) {
-    try {
-      var originalReplaceState = window.history.replaceState;
-      window.history.replaceState = function () {
-        try {
-          var result = originalReplaceState.apply(this, arguments);
-          notify();
-          return result;
-        } catch (err) {}
-      };
-    } catch (err) {}
-  }
-
-  window.addEventListener('popstate', notify);
-  window.addEventListener('hashchange', notify);
-  document.addEventListener('readystatechange', function () {
-    if (document.readyState === 'complete') {
-      notify();
-    }
-  });
-
-  notify();
-  return true;
-})();`;
-
-type LoginBridgeMessage = {
-  source: typeof LOGIN_BRIDGE_SOURCE;
-  type: 'url';
-  payload: {
-    href?: string;
-    title?: string;
-  };
-};
-
-const parseLoginBridgeMessage = (raw: string): LoginBridgeMessage | null => {
-  try {
-    const parsed = JSON.parse(raw) as LoginBridgeMessage;
-    if (parsed?.source !== LOGIN_BRIDGE_SOURCE || parsed.type !== 'url') {
-      return null;
-    }
-    return parsed;
-  } catch {
-    return null;
-  }
-};
 
 export default function XLoginScreen() {
   const router = useRouter();
@@ -144,13 +53,7 @@ export default function XLoginScreen() {
       return;
     }
 
-    try {
-      await setXFollowingTimelineBatch(batch);
-    } catch (err) {
-      logger.warn('Failed to persist timeline batch', {
-        error: err instanceof Error ? err.message : String(err),
-      });
-    }
+    setXFollowingTimelineBatch(batch);
     setStatus('done');
     router.replace('/(auth)/x-feed');
   };
@@ -271,35 +174,6 @@ export default function XLoginScreen() {
     }
   };
 
-  const handleWebViewMessage = async (event: WebViewMessageEvent) => {
-    const raw = event.nativeEvent?.data;
-    if (!raw) {
-      return;
-    }
-
-    const message = parseLoginBridgeMessage(raw);
-    if (!message) {
-      return;
-    }
-
-    const href = message.payload.href ?? '';
-    if (!href) {
-      return;
-    }
-
-    if (!X_ALLOWED_ORIGINS.some((origin) => href.startsWith(origin))) {
-      return;
-    }
-
-    if (looksLikeLoggedInUrl(href)) {
-      logger.info('Login bridge detected authenticated URL', { href });
-      await completeCaptureAndLoadTimeline({
-        reason: 'bridge-url',
-        strict: true,
-      });
-    }
-  };
-
   const handleNavigationStateChange = async (navState: WebViewNavigation) => {
     try {
       const decision = evaluateXWebViewNavigation(navState, logger);
@@ -355,8 +229,6 @@ export default function XLoginScreen() {
             source={{ uri: X_LOGIN_URL }}
             originWhitelist={[...X_ALLOWED_ORIGINS]}
             onNavigationStateChange={handleNavigationStateChange}
-            onMessage={handleWebViewMessage}
-            injectedJavaScriptBeforeContentLoaded={LOGIN_BRIDGE_SCRIPT}
             javaScriptEnabled
             onLoadStart={() => {
               logger.debug('WebView load started');

@@ -3,7 +3,7 @@ import { ActivityIndicator, FlatList, SafeAreaView, StyleSheet, Text, View } fro
 
 import {
   clearXFollowingTimelineBatch,
-  loadXFollowingTimelineBatch,
+  getXFollowingTimelineBatch,
   XFollowingTimelineBatch,
   XTimelineItem,
 } from '../../src/services/x/timeline';
@@ -45,19 +45,11 @@ export default function XFeedScreen() {
   }, [batch]);
 
   useEffect(() => {
-    const loadBatch = async () => {
-      try {
-        const cached = await loadXFollowingTimelineBatch();
-        if (cached) {
-          setBatch(cached);
-          await clearXFollowingTimelineBatch();
-        }
-      } catch {
-        // Ignore cache hydration failures and keep the loading state.
-      }
-    };
-
-    void loadBatch();
+    const cached = getXFollowingTimelineBatch();
+    if (cached) {
+      setBatch(cached);
+      clearXFollowingTimelineBatch();
+    }
   }, []);
 
   return (
