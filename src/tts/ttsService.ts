@@ -1,29 +1,43 @@
-import TTSManager from 'react-native-sherpa-onnx-offline-tts';
+import * as Speech from 'expo-speech';
 
-import { TTS_DEFAULT_SPEAKER_ID, TTS_DEFAULT_SPEED } from './ttsConstants';
 import { TtsError, ttsErrorCodes } from './ttsErrors';
 import { createTtsLogger, TtsLogger } from './ttsLogger';
-import { TtsModelManager, TtsModelManagerOptions } from './ttsModelManager';
-import { TtsDownloadProgress, TtsSpeakOptions } from './ttsTypes';
+import { TtsSpeakOptions } from './ttsTypes';
 
-export type TtsServiceOptions = TtsModelManagerOptions & {
+type TtsVoice = {
+  identifier: string;
+  language: string;
+};
+
+export type TtsAvailableVoice = TtsVoice;
+
+const normalizeLanguageTag = (value: string): string => value.replace(/_/g, '-').toLowerCase();
+
+const getLanguageCandidates = (value: string): string[] => {
+  const normalized = normalizeLanguageTag(value);
+  const [primary, region] = normalized.split('-');
+
+  if (primary === 'he' || primary === 'iw') {
+    return region ? [`he-${region}`, `iw-${region}`, 'he', 'iw'] : ['he', 'iw'];
+  }
+
+  return region ? [normalized, primary] : [primary];
+};
+
+export type TtsServiceOptions = {
   logger?: TtsLogger;
 };
 
 export class TtsService {
   private readonly logger: TtsLogger;
-  private readonly modelManager: TtsModelManager;
+  private availableVoices: TtsVoice[] = [];
   private initialized: boolean = false;
 
   public constructor(options: TtsServiceOptions = {}) {
     this.logger = options.logger ?? createTtsLogger();
-    this.modelManager = new TtsModelManager({
-      logger: this.logger,
-      modelZipUrl: options.modelZipUrl,
-    });
   }
 
-  public async initialize(onProgress?: (progress: TtsDownloadProgress) => void): Promise<void> {
+  public async initialize(): Promise<void> {
     if (this.initialized) {
       this.logger.debug('TTS already initialized');
       return;
@@ -32,18 +46,13 @@ export class TtsService {
     this.logger.info('Initializing TTS');
 
     try {
-      const config = await this.modelManager.ensureModel(onProgress);
-
-      this.logger.debug('Model config', {
-        modelPath: config.modelPath,
-        tokensPath: config.tokensPath,
-        dataDirPath: config.dataDirPath,
-      });
-
-      await TTSManager.initialize(JSON.stringify(config));
+      this.availableVoices = (await Speech.getAvailableVoicesAsync()).map((voice) => ({
+        identifier: voice.identifier,
+        language: voice.language,
+      }));
       this.initialized = true;
 
-      this.logger.info('TTS initialized successfully');
+      this.logger.info('TTS initialized successfully', { voiceCount: this.availableVoices.length });
     } catch (err) {
       if (err instanceof TtsError) throw err;
 
@@ -56,18 +65,47 @@ export class TtsService {
   public async speak(text: string, options?: TtsSpeakOptions): Promise<void> {
     this.assertInitialized();
 
-    const speakerId = options?.speakerId ?? TTS_DEFAULT_SPEAKER_ID;
-    const speed = options?.speed ?? TTS_DEFAULT_SPEED;
+    const resolvedOptions = this.resolveSpeakOptions(options);
 
     this.logger.debug('Generating speech', {
       textLength: text.length,
-      speakerId,
-      speed,
+      language: resolvedOptions.language,
+      pitch: resolvedOptions.pitch,
+      rate: resolvedOptions.rate,
+      voice: resolvedOptions.voice,
+      volume: resolvedOptions.volume,
     });
 
     try {
-      await TTSManager.generateAndPlay(text, speakerId, speed);
+      await new Promise<void>((resolve, reject) => {
+        Speech.speak(text, {
+          ...resolvedOptions,
+          onStart: () => {
+            resolvedOptions.onStart?.();
+          },
+          onDone: () => {
+            resolvedOptions.onDone?.();
+            resolve();
+          },
+          onStopped: () => {
+            resolvedOptions.onStopped?.();
+            resolve();
+          },
+          onError: (error) => {
+            resolvedOptions.onError?.(error);
+            reject(
+              new TtsError('Failed to generate speech', ttsErrorCodes.GenerationFailed, {
+                cause: error.message,
+              }),
+            );
+          },
+        });
+      });
     } catch (err) {
+      if (err instanceof TtsError) {
+        throw err;
+      }
+
       throw new TtsError('Failed to generate speech', ttsErrorCodes.GenerationFailed, {
         cause: err instanceof Error ? err.message : String(err),
       });
@@ -77,26 +115,29 @@ export class TtsService {
   public async save(text: string, path?: string): Promise<void> {
     this.assertInitialized();
 
-    this.logger.debug('Saving speech to file', { textLength: text.length, path });
-
-    try {
-      await TTSManager.generateAndSave(text, path, 'wav');
-    } catch (err) {
-      throw new TtsError('Failed to save speech', ttsErrorCodes.GenerationFailed, {
-        cause: err instanceof Error ? err.message : String(err),
-      });
-    }
+    this.logger.warn('Save requested but not supported by expo-speech', {
+      textLength: text.length,
+      path,
+    });
+    throw new TtsError(
+      'Saving speech to a file is not supported by expo-speech',
+      ttsErrorCodes.GenerationFailed,
+    );
   }
 
-  public addVolumeListener(callback: (volume: number) => void): { remove: () => void } {
-    return TTSManager.addVolumeListener(callback);
+  public async stop(): Promise<void> {
+    if (!this.initialized) {
+      return;
+    }
+
+    await Speech.stop();
   }
 
   public deinitialize(): void {
     if (!this.initialized) return;
 
     this.logger.info('Deinitializing TTS');
-    TTSManager.deinitialize();
+    void Speech.stop();
     this.initialized = false;
   }
 
@@ -104,8 +145,51 @@ export class TtsService {
     return this.initialized;
   }
 
-  public getModelManager(): TtsModelManager {
-    return this.modelManager;
+  public hasLanguageSupport(language: string): boolean {
+    this.assertInitialized();
+    return this.findVoiceForLanguage(language) !== undefined;
+  }
+
+  public getAvailableVoices(): TtsAvailableVoice[] {
+    this.assertInitialized();
+    return [...this.availableVoices];
+  }
+
+  private resolveSpeakOptions(options?: TtsSpeakOptions): TtsSpeakOptions {
+    if (!options?.language || options.voice) {
+      return options ?? {};
+    }
+
+    const matchedVoice = this.findVoiceForLanguage(options.language);
+    if (!matchedVoice) {
+      this.logger.warn('Requested TTS language not available, falling back to default voice', {
+        requestedLanguage: options.language,
+      });
+
+      return options;
+    }
+
+    return {
+      ...options,
+      language: matchedVoice.language,
+      voice: matchedVoice.identifier,
+    };
+  }
+
+  private findVoiceForLanguage(language: string): TtsVoice | undefined {
+    const candidates = getLanguageCandidates(language);
+
+    for (const candidate of candidates) {
+      const matchedVoice = this.availableVoices.find(
+        (voice) => normalizeLanguageTag(voice.language) === candidate,
+      );
+
+      if (matchedVoice) {
+        return matchedVoice;
+      }
+    }
+
+    return undefined;
   }
 
   private assertInitialized(): void {

@@ -1,18 +1,11 @@
-export type TtsModelConfig = {
-  modelPath: string;
-  tokensPath: string;
-  dataDirPath: string;
-};
-
-export type TtsModelStatus = 'not_downloaded' | 'downloading' | 'extracting' | 'ready' | 'error';
-
-export type TtsDownloadProgress = {
-  totalBytesWritten: number;
-  totalBytesExpectedToWrite: number;
-  fraction: number;
-};
-
 export type TtsSpeakOptions = {
-  speakerId?: number;
-  speed?: number;
+  language?: string;
+  pitch?: number;
+  rate?: number;
+  voice?: string;
+  volume?: number;
+  onStart?: () => void;
+  onDone?: () => void;
+  onStopped?: () => void;
+  onError?: (error: Error) => void;
 };

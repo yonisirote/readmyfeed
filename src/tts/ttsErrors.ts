@@ -11,9 +11,6 @@ export class TtsError extends Error {
 }
 
 export const ttsErrorCodes = {
-  ModelDownloadFailed: 'TTS_MODEL_DOWNLOAD_FAILED',
-  ModelExtractionFailed: 'TTS_MODEL_EXTRACTION_FAILED',
-  ModelNotReady: 'TTS_MODEL_NOT_READY',
   InitializationFailed: 'TTS_INITIALIZATION_FAILED',
   GenerationFailed: 'TTS_GENERATION_FAILED',
   NotInitialized: 'TTS_NOT_INITIALIZED',
