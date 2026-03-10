@@ -1,37 +1,22 @@
 import * as Speech from 'expo-speech';
 
 import { TtsError, ttsErrorCodes } from './ttsErrors';
-import { createTtsLogger, TtsLogger } from './ttsLogger';
-import { TtsSpeakOptions } from './ttsTypes';
-
-type TtsVoice = {
-  identifier: string;
-  language: string;
-};
-
-export type TtsAvailableVoice = TtsVoice;
-
-const normalizeLanguageTag = (value: string): string => value.replace(/_/g, '-').toLowerCase();
-
-const getLanguageCandidates = (value: string): string[] => {
-  const normalized = normalizeLanguageTag(value);
-  const [primary, region] = normalized.split('-');
-
-  if (primary === 'he' || primary === 'iw') {
-    return region ? [`he-${region}`, `iw-${region}`, 'he', 'iw'] : ['he', 'iw'];
-  }
-
-  return region ? [normalized, primary] : [primary];
-};
+import { createTtsLogger, type TtsLogger } from './ttsLogger';
+import type { TtsSpeakOptions, TtsVoice } from './ttsTypes';
+import { findBestVoiceForLanguage } from './ttsVoiceSelection';
 
 export type TtsServiceOptions = {
   logger?: TtsLogger;
 };
 
+const SPEECH_TIMEOUT_BASE_MS = 15_000;
+const SPEECH_TIMEOUT_PER_CHAR_MS = 100;
+
 export class TtsService {
   private readonly logger: TtsLogger;
   private availableVoices: TtsVoice[] = [];
   private initialized: boolean = false;
+  private initPromise: Promise<void> | null = null;
 
   public constructor(options: TtsServiceOptions = {}) {
     this.logger = options.logger ?? createTtsLogger();
@@ -43,17 +28,29 @@ export class TtsService {
       return;
     }
 
+    if (this.initPromise) {
+      return this.initPromise;
+    }
+
+    this.initPromise = this.doInitialize();
+    return this.initPromise;
+  }
+
+  private async doInitialize(): Promise<void> {
     this.logger.info('Initializing TTS');
 
     try {
       this.availableVoices = (await Speech.getAvailableVoicesAsync()).map((voice) => ({
         identifier: voice.identifier,
         language: voice.language,
+        quality: voice.quality,
       }));
       this.initialized = true;
 
       this.logger.info('TTS initialized successfully', { voiceCount: this.availableVoices.length });
     } catch (err) {
+      this.initPromise = null;
+
       if (err instanceof TtsError) throw err;
 
       throw new TtsError('Failed to initialize TTS engine', ttsErrorCodes.InitializationFailed, {
@@ -76,53 +73,7 @@ export class TtsService {
       volume: resolvedOptions.volume,
     });
 
-    try {
-      await new Promise<void>((resolve, reject) => {
-        Speech.speak(text, {
-          ...resolvedOptions,
-          onStart: () => {
-            resolvedOptions.onStart?.();
-          },
-          onDone: () => {
-            resolvedOptions.onDone?.();
-            resolve();
-          },
-          onStopped: () => {
-            resolvedOptions.onStopped?.();
-            resolve();
-          },
-          onError: (error) => {
-            resolvedOptions.onError?.(error);
-            reject(
-              new TtsError('Failed to generate speech', ttsErrorCodes.GenerationFailed, {
-                cause: error.message,
-              }),
-            );
-          },
-        });
-      });
-    } catch (err) {
-      if (err instanceof TtsError) {
-        throw err;
-      }
-
-      throw new TtsError('Failed to generate speech', ttsErrorCodes.GenerationFailed, {
-        cause: err instanceof Error ? err.message : String(err),
-      });
-    }
-  }
-
-  public async save(text: string, path?: string): Promise<void> {
-    this.assertInitialized();
-
-    this.logger.warn('Save requested but not supported by expo-speech', {
-      textLength: text.length,
-      path,
-    });
-    throw new TtsError(
-      'Saving speech to a file is not supported by expo-speech',
-      ttsErrorCodes.GenerationFailed,
-    );
+    await this.speakWithResolvedOptions(text, resolvedOptions);
   }
 
   public async stop(): Promise<void> {
@@ -138,21 +89,14 @@ export class TtsService {
 
     this.logger.info('Deinitializing TTS');
     void Speech.stop();
+    this.availableVoices = [];
     this.initialized = false;
-  }
-
-  public isInitialized(): boolean {
-    return this.initialized;
+    this.initPromise = null;
   }
 
   public hasLanguageSupport(language: string): boolean {
     this.assertInitialized();
-    return this.findVoiceForLanguage(language) !== undefined;
-  }
-
-  public getAvailableVoices(): TtsAvailableVoice[] {
-    this.assertInitialized();
-    return [...this.availableVoices];
+    return findBestVoiceForLanguage(this.availableVoices, language) !== undefined;
   }
 
   private resolveSpeakOptions(options?: TtsSpeakOptions): TtsSpeakOptions {
@@ -160,7 +104,7 @@ export class TtsService {
       return options ?? {};
     }
 
-    const matchedVoice = this.findVoiceForLanguage(options.language);
+    const matchedVoice = findBestVoiceForLanguage(this.availableVoices, options.language);
     if (!matchedVoice) {
       this.logger.warn('Requested TTS language not available, falling back to default voice', {
         requestedLanguage: options.language,
@@ -176,20 +120,52 @@ export class TtsService {
     };
   }
 
-  private findVoiceForLanguage(language: string): TtsVoice | undefined {
-    const candidates = getLanguageCandidates(language);
+  private async speakWithResolvedOptions(text: string, options: TtsSpeakOptions): Promise<void> {
+    const timeoutMs = SPEECH_TIMEOUT_BASE_MS + text.length * SPEECH_TIMEOUT_PER_CHAR_MS;
 
-    for (const candidate of candidates) {
-      const matchedVoice = this.availableVoices.find(
-        (voice) => normalizeLanguageTag(voice.language) === candidate,
-      );
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(() => {
+          this.logger.warn('Speech timed out, resolving', { textLength: text.length, timeoutMs });
+          void Speech.stop();
+          resolve();
+        }, timeoutMs);
 
-      if (matchedVoice) {
-        return matchedVoice;
+        Speech.speak(text, {
+          ...options,
+          onStart: () => {
+            options.onStart?.();
+          },
+          onDone: () => {
+            clearTimeout(timer);
+            options.onDone?.();
+            resolve();
+          },
+          onStopped: () => {
+            clearTimeout(timer);
+            options.onStopped?.();
+            resolve();
+          },
+          onError: (error) => {
+            clearTimeout(timer);
+            options.onError?.(error);
+            reject(this.createGenerationError(error));
+          },
+        });
+      });
+    } catch (err) {
+      if (err instanceof TtsError) {
+        throw err;
       }
-    }
 
-    return undefined;
+      throw this.createGenerationError(err);
+    }
+  }
+
+  private createGenerationError(error: unknown): TtsError {
+    return new TtsError('Failed to generate speech', ttsErrorCodes.GenerationFailed, {
+      cause: error instanceof Error ? error.message : String(error),
+    });
   }
 
   private assertInitialized(): void {

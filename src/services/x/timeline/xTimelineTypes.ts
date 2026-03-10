@@ -33,6 +33,8 @@ export type XTimelineItem = {
   viewCount: number | null;
   isRetweet: boolean;
   isQuote: boolean;
+  quotedText: string;
+  quotedAuthorHandle: string;
   url: string;
   media: XTimelineMedia[];
 };

@@ -253,6 +253,22 @@ const extractTweet = (timelineTweetNode: unknown): XTimelineItem | null => {
   );
   const isQuote = Boolean(legacy.is_quote_status || asString(quotedResult?.rest_id));
 
+  let quotedText = '';
+  let quotedAuthorHandle = '';
+  if (isQuote && quotedResult) {
+    const qLegacy = asRecord(quotedResult.legacy);
+    const qNoteTweet = asRecord(quotedResult.note_tweet);
+    const qNoteResults = asRecord(qNoteTweet?.note_tweet_results);
+    const qNoteResult = asRecord(qNoteResults?.result);
+    quotedText = asString(qNoteResult?.text) || asString(qLegacy?.full_text);
+
+    const qCore = asRecord(quotedResult.core);
+    const qUserResults = asRecord(qCore?.user_results);
+    const qUserResult = asRecord(qUserResults?.result);
+    const qUserLegacy = asRecord(qUserResult?.legacy);
+    quotedAuthorHandle = asString(qUserLegacy?.screen_name);
+  }
+
   return {
     id,
     text: asString(noteTweetResult?.text) || asString(legacy.full_text),
@@ -270,6 +286,8 @@ const extractTweet = (timelineTweetNode: unknown): XTimelineItem | null => {
       : null,
     isRetweet,
     isQuote,
+    quotedText,
+    quotedAuthorHandle,
     url: authorHandle ? `https://x.com/${authorHandle}/status/${id}` : '',
     media: extractMedia(legacy),
   };

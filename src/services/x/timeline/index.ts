@@ -14,3 +14,4 @@ export type {
   XTimelineMediaType,
 } from './xTimelineTypes';
 export type { XFollowingTimelineRequest, XTimelineServiceOptions } from './xTimelineService';
+export { toSpeakableItem } from './xSpeakableAdapter';

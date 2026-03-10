@@ -28,7 +28,6 @@ describe('TtsService', () => {
     await service.initialize();
 
     expect(Speech.getAvailableVoicesAsync).toHaveBeenCalledTimes(1);
-    expect(service.isInitialized()).toBe(true);
   });
 
   it('speaks using expo-speech options', async () => {
@@ -58,6 +57,12 @@ describe('TtsService', () => {
   it('resolves hebrew to an installed voice', async () => {
     jest.mocked(Speech.getAvailableVoicesAsync).mockResolvedValue([
       {
+        identifier: 'he-il-language',
+        language: 'iw-IL',
+        name: 'Hebrew Placeholder',
+        quality: Speech.VoiceQuality.Default,
+      },
+      {
         identifier: 'hebrew-voice',
         language: 'iw-IL',
         name: 'Hebrew',
@@ -77,6 +82,38 @@ describe('TtsService', () => {
       expect.objectContaining({
         language: 'iw-IL',
         voice: 'hebrew-voice',
+      }),
+    );
+  });
+
+  it('prefers a local hebrew voice over a generic language entry', async () => {
+    jest.mocked(Speech.getAvailableVoicesAsync).mockResolvedValue([
+      {
+        identifier: 'he-il-language',
+        language: 'iw-IL',
+        name: 'Hebrew Language',
+        quality: Speech.VoiceQuality.Default,
+      },
+      {
+        identifier: 'he-il-heb-local',
+        language: 'iw-IL',
+        name: 'Hebrew Local',
+        quality: Speech.VoiceQuality.Default,
+      },
+    ]);
+
+    const service = new TtsService();
+
+    await service.initialize();
+    await service.speak('שלום', {
+      language: 'he-IL',
+    });
+
+    const [, options] = jest.mocked(Speech.speak).mock.calls[0];
+    expect(options).toEqual(
+      expect.objectContaining({
+        language: 'iw-IL',
+        voice: 'he-il-heb-local',
       }),
     );
   });
@@ -144,44 +181,11 @@ describe('TtsService', () => {
     expect(service.hasLanguageSupport('en-US')).toBe(false);
   });
 
-  it('returns the available voices after initialization', async () => {
-    jest.mocked(Speech.getAvailableVoicesAsync).mockResolvedValue([
-      {
-        identifier: 'voice-1',
-        language: 'en-US',
-        name: 'English US',
-        quality: Speech.VoiceQuality.Default,
-      },
-    ]);
-
-    const service = new TtsService();
-
-    await service.initialize();
-
-    expect(service.getAvailableVoices()).toEqual([
-      {
-        identifier: 'voice-1',
-        language: 'en-US',
-      },
-    ]);
-  });
-
   it('throws when speaking before initialization', async () => {
     const service = new TtsService();
 
     await expect(service.speak('hello')).rejects.toMatchObject({
       code: ttsErrorCodes.NotInitialized,
-    });
-  });
-
-  it('throws when save is requested', async () => {
-    const service = new TtsService();
-
-    await service.initialize();
-
-    await expect(service.save('hello')).rejects.toMatchObject({
-      code: ttsErrorCodes.GenerationFailed,
-      message: 'Saving speech to a file is not supported by expo-speech',
     });
   });
 
@@ -192,5 +196,25 @@ describe('TtsService', () => {
     await service.stop();
 
     expect(Speech.stop).toHaveBeenCalledTimes(1);
+  });
+
+  it('stops exposing installed language support after deinitialize', async () => {
+    jest.mocked(Speech.getAvailableVoicesAsync).mockResolvedValue([
+      {
+        identifier: 'hebrew-voice',
+        language: 'iw-IL',
+        name: 'Hebrew',
+        quality: Speech.VoiceQuality.Default,
+      },
+    ]);
+
+    const service = new TtsService();
+
+    await service.initialize();
+    service.deinitialize();
+
+    await expect(service.speak('hello')).rejects.toMatchObject({
+      code: ttsErrorCodes.NotInitialized,
+    });
   });
 });

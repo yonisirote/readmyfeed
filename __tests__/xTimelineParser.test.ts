@@ -99,4 +99,56 @@ describe('parseXFollowingTimelineResponse', () => {
     expect(parsed.items[0].viewCount).toBe(99);
     expect(parsed.nextCursor).toBe('cursor-abc');
   });
+
+  it('extracts quoted tweet text and author', () => {
+    const payload = {
+      __typename: 'TimelineTweet',
+      tweet_results: {
+        result: {
+          __typename: 'Tweet',
+          rest_id: '222',
+          legacy: {
+            full_text: 'my commentary',
+            created_at: 'Thu Feb 20 12:34:56 +0000 2025',
+            lang: 'en',
+            is_quote_status: true,
+            quote_count: 0,
+            reply_count: 0,
+            retweet_count: 0,
+            favorite_count: 0,
+          },
+          core: {
+            user_results: {
+              result: {
+                legacy: { name: 'Bob', screen_name: 'bob' },
+              },
+            },
+          },
+          quoted_status_result: {
+            result: {
+              __typename: 'Tweet',
+              rest_id: '333',
+              legacy: {
+                full_text: 'original thought',
+              },
+              core: {
+                user_results: {
+                  result: {
+                    legacy: { name: 'Alice', screen_name: 'alice' },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    };
+
+    const parsed = parseXFollowingTimelineResponse(payload);
+
+    expect(parsed.items).toHaveLength(1);
+    expect(parsed.items[0].isQuote).toBe(true);
+    expect(parsed.items[0].quotedText).toBe('original thought');
+    expect(parsed.items[0].quotedAuthorHandle).toBe('alice');
+  });
 });

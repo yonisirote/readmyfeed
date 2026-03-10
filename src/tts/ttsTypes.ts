@@ -1,3 +1,9 @@
+export type TtsVoice = {
+  identifier: string;
+  language: string;
+  quality?: string;
+};
+
 export type TtsSpeakOptions = {
   language?: string;
   pitch?: number;

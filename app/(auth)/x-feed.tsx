@@ -5,43 +5,24 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   clearXFollowingTimelineBatch,
   getXFollowingTimelineBatch,
+  toSpeakableItem,
   XFollowingTimelineBatch,
   XTimelineItem,
 } from '../../src/services/x/timeline';
-import { TtsService, TtsAvailableVoice, TtsError } from '../../src/tts';
-
-const getSpeechLanguage = (lang: string): string | undefined => {
-  if (lang === 'he') {
-    return 'he-IL';
-  }
-
-  if (lang === 'en') {
-    return 'en-US';
-  }
-
-  return undefined;
-};
+import {
+  getSpeakableItemLanguage,
+  getSpeakableItemText,
+  TtsError,
+  TtsService,
+} from '../../src/tts';
 
 export default function XFeedScreen() {
   const [batch, setBatch] = useState<XFollowingTimelineBatch | null>(null);
   const [items, setItems] = useState<XTimelineItem[]>([]);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [speechError, setSpeechError] = useState<string | null>(null);
-  const [voiceDebugLines, setVoiceDebugLines] = useState<string[]>([]);
-  const [isLoadingVoices, setIsLoadingVoices] = useState(false);
   const ttsService = useMemo(() => new TtsService(), []);
   const playbackRequestId = useRef(0);
-
-  const formatVoiceDebugLines = (voices: TtsAvailableVoice[]): string[] => {
-    if (voices.length === 0) {
-      return ['No voices reported by expo-speech.'];
-    }
-
-    return voices
-      .slice()
-      .sort((left, right) => left.language.localeCompare(right.language))
-      .map((voice) => `${voice.language} - ${voice.identifier}`);
-  };
 
   useEffect(() => {
     if (!batch?.items) {
@@ -59,17 +40,11 @@ export default function XFeedScreen() {
 
     const nextItems = Array.from(unique.values());
     setItems((prev) => {
-      if (prev.length === nextItems.length) {
-        let isSame = true;
-        for (let i = 0; i < nextItems.length; i += 1) {
-          if (prev[i]?.id !== nextItems[i]?.id) {
-            isSame = false;
-            break;
-          }
-        }
-        if (isSame) {
-          return prev;
-        }
+      if (
+        prev.length === nextItems.length &&
+        nextItems.every((item, i) => prev[i]?.id === item.id)
+      ) {
+        return prev;
       }
       return nextItems;
     });
@@ -88,9 +63,9 @@ export default function XFeedScreen() {
   }, [ttsService]);
 
   const handlePlayFeed = async () => {
-    const readableItems = items.filter((item) => item.text.trim().length > 0);
+    const speakableItems = items.filter((item) => item.text.trim().length > 0).map(toSpeakableItem);
 
-    if (readableItems.length === 0) {
+    if (speakableItems.length === 0) {
       setSpeechError('No tweet text available to read yet.');
       return;
     }
@@ -104,21 +79,19 @@ export default function XFeedScreen() {
     try {
       await ttsService.initialize();
 
-      if (readableItems.some((item) => getSpeechLanguage(item.lang) === 'he-IL')) {
-        if (!ttsService.hasLanguageSupport('he-IL')) {
-          setSpeechError('Hebrew voice is not installed on this device yet.');
-          return;
-        }
-      }
-
-      for (const item of readableItems) {
+      for (const item of speakableItems) {
         if (playbackRequestId.current !== requestId) {
           return;
         }
 
-        const author = item.authorHandle ? `At ${item.authorHandle}. ` : '';
-        await ttsService.speak(`${author}${item.text}`.trim(), {
-          language: getSpeechLanguage(item.lang),
+        const language = getSpeakableItemLanguage(item);
+
+        if (language && !ttsService.hasLanguageSupport(language)) {
+          continue;
+        }
+
+        await ttsService.speak(getSpeakableItemText(item), {
+          language,
           rate: 0.95,
         });
       }
@@ -137,22 +110,6 @@ export default function XFeedScreen() {
     playbackRequestId.current += 1;
     await ttsService.stop();
     setIsSpeaking(false);
-  };
-
-  const handleShowVoiceDebug = async () => {
-    setSpeechError(null);
-    setIsLoadingVoices(true);
-
-    try {
-      await ttsService.initialize();
-      setVoiceDebugLines(formatVoiceDebugLines(ttsService.getAvailableVoices()));
-    } catch (err) {
-      setSpeechError(
-        err instanceof TtsError ? err.message : 'Unable to inspect installed voices right now.',
-      );
-    } finally {
-      setIsLoadingVoices(false);
-    }
   };
 
   return (
@@ -181,26 +138,7 @@ export default function XFeedScreen() {
             <Text style={styles.stopButtonText}>Stop</Text>
           </Pressable>
         </View>
-        <Pressable
-          accessibilityRole="button"
-          onPress={handleShowVoiceDebug}
-          disabled={isLoadingVoices}
-          style={[styles.debugButton, isLoadingVoices && styles.actionButtonDisabled]}
-        >
-          <Text style={styles.debugButtonText}>
-            {isLoadingVoices ? 'Loading voices...' : 'Show voices'}
-          </Text>
-        </Pressable>
         {speechError ? <Text style={styles.errorText}>{speechError}</Text> : null}
-        {voiceDebugLines.length > 0 ? (
-          <View style={styles.debugPanel}>
-            {voiceDebugLines.map((line) => (
-              <Text key={line} style={styles.debugLine}>
-                {line}
-              </Text>
-            ))}
-          </View>
-        ) : null}
       </View>
 
       {items.length === 0 ? (
@@ -281,31 +219,6 @@ const styles = StyleSheet.create({
   errorText: {
     marginTop: 10,
     color: '#b42318',
-  },
-  debugButton: {
-    alignSelf: 'flex-start',
-    marginTop: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 999,
-    backgroundColor: '#f3f4f6',
-  },
-  debugButtonText: {
-    color: '#374151',
-    fontWeight: '600',
-  },
-  debugPanel: {
-    marginTop: 12,
-    padding: 12,
-    backgroundColor: '#f8fafc',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-  },
-  debugLine: {
-    color: '#1f2937',
-    fontSize: 12,
-    lineHeight: 18,
   },
   loadingState: {
     flex: 1,
