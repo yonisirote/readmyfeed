@@ -30,7 +30,7 @@ export const looksLikeLoggedInUrl = (url?: string | null): boolean => {
     }
 
     return POST_LOGIN_PATH_HINTS.some((hint) => parsed.pathname.startsWith(hint));
-  } catch (err) {
+  } catch {
     return false;
   }
 };

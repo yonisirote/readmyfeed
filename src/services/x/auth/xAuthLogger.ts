@@ -16,7 +16,7 @@ const formatPayload = (payload?: LogPayload) => {
 
   try {
     return ` ${JSON.stringify(payload)}`;
-  } catch (err) {
+  } catch {
     return ' [payload-unserializable]';
   }
 };
