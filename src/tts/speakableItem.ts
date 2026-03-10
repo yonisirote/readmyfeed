@@ -21,8 +21,15 @@ export const getSpeakableItemLanguage = (
   return SPEECH_LANGUAGE_BY_CONTENT_LANGUAGE[item.lang.toLowerCase()];
 };
 
-export const getSpeakableItemText = (item: Pick<SpeakableItem, 'authorLabel' | 'text'>): string => {
-  const authorPrefix = item.authorLabel ? `At ${item.authorLabel}. ` : '';
+export const getSpeakableItemText = (
+  item: Pick<SpeakableItem, 'authorLabel' | 'text' | 'lang'>,
+): string => {
+  if (!item.authorLabel) {
+    return item.text.trim();
+  }
 
-  return `${authorPrefix}${item.text}`.trim();
+  const isHebrew = getSpeakableItemLanguage(item) === 'he-IL';
+  const connector = isHebrew ? 'אומר:' : 'says:';
+
+  return `${item.authorLabel} ${connector} ${item.text}`.trim();
 };

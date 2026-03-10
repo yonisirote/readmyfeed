@@ -28,7 +28,17 @@ describe('speakableItem helpers', () => {
       lang: 'en',
     };
 
-    expect(getSpeakableItemText(item)).toBe('At yoni. Hello world');
+    expect(getSpeakableItemText(item)).toBe('yoni says: Hello world');
+  });
+
+  it('uses hebrew connector when text contains hebrew characters', () => {
+    const item: SpeakableItem = {
+      text: 'שלום עולם',
+      authorLabel: 'yoni',
+      lang: 'he',
+    };
+
+    expect(getSpeakableItemText(item)).toBe('yoni אומר: שלום עולם');
   });
 
   it('omits the author prefix when author label is empty', () => {

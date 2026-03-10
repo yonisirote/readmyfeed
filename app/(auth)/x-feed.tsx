@@ -155,7 +155,7 @@ export default function XFeedScreen() {
           renderItem={({ item }) => (
             <View style={styles.feedItem}>
               <Text style={styles.feedAuthor}>
-                {item.authorHandle ? `@${item.authorHandle}` : item.authorName || 'Unknown'}
+                {item.authorName || (item.authorHandle ? `@${item.authorHandle}` : 'Unknown')}
               </Text>
               <Text style={styles.feedText}>{item.text || '[No text]'}</Text>
               <Text style={styles.feedMeta}>

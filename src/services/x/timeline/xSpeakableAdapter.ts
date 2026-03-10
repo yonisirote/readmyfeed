@@ -14,7 +14,7 @@ export const toSpeakableItem = (item: XTimelineItem): SpeakableItem => {
 
   return {
     text: `${prefix}${body}`.trim(),
-    authorLabel: item.authorHandle,
+    authorLabel: item.authorName || item.authorHandle,
     lang: item.lang,
   };
 };
