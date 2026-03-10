@@ -151,4 +151,42 @@ describe('parseXFollowingTimelineResponse', () => {
     expect(parsed.items[0].quotedText).toBe('original thought');
     expect(parsed.items[0].quotedAuthorHandle).toBe('alice');
   });
+
+  it('reads author from user core when legacy lacks name/screen_name', () => {
+    const payload = {
+      __typename: 'TimelineTweet',
+      tweet_results: {
+        result: {
+          __typename: 'Tweet',
+          rest_id: '444',
+          legacy: {
+            full_text: 'hello again',
+            created_at: 'Thu Feb 20 12:34:56 +0000 2025',
+            lang: 'en',
+            quote_count: 0,
+            reply_count: 0,
+            retweet_count: 0,
+            favorite_count: 0,
+          },
+          core: {
+            user_results: {
+              result: {
+                legacy: {},
+                core: {
+                  name: 'Charlie',
+                  screen_name: 'charlie',
+                },
+              },
+            },
+          },
+        },
+      },
+    };
+
+    const parsed = parseXFollowingTimelineResponse(payload);
+
+    expect(parsed.items).toHaveLength(1);
+    expect(parsed.items[0].authorHandle).toBe('charlie');
+    expect(parsed.items[0].authorName).toBe('Charlie');
+  });
 });

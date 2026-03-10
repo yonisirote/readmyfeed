@@ -235,11 +235,13 @@ const extractTweet = (timelineTweetNode: unknown): XTimelineItem | null => {
   const noteTweetResult = asRecord(noteTweetResults?.result);
 
   // From Rettiwt-API: user info extracted via core.user_results.result
+  // X moved name/screen_name from legacy to a sibling core object; read both with fallback.
   const core = asRecord(result.core);
   const userResults = asRecord(core?.user_results);
   const userResult = asRecord(userResults?.result);
   const userLegacy = asRecord(userResult?.legacy);
-  const authorHandle = asString(userLegacy?.screen_name);
+  const userCore = asRecord(userResult?.core);
+  const authorHandle = asString(userCore?.screen_name) || asString(userLegacy?.screen_name);
 
   // From Rettiwt-API _getQuotedTweet / _getRetweetedTweet — simplified to boolean flags
   const quotedStatusResult = asRecord(result.quoted_status_result);
@@ -266,14 +268,15 @@ const extractTweet = (timelineTweetNode: unknown): XTimelineItem | null => {
     const qUserResults = asRecord(qCore?.user_results);
     const qUserResult = asRecord(qUserResults?.result);
     const qUserLegacy = asRecord(qUserResult?.legacy);
-    quotedAuthorHandle = asString(qUserLegacy?.screen_name);
+    const qUserCore = asRecord(qUserResult?.core);
+    quotedAuthorHandle = asString(qUserCore?.screen_name) || asString(qUserLegacy?.screen_name);
   }
 
   return {
     id,
     text: asString(noteTweetResult?.text) || asString(legacy.full_text),
     createdAt: toIsoDate(legacy.created_at),
-    authorName: asString(userLegacy?.name),
+    authorName: asString(userCore?.name) || asString(userLegacy?.name),
     authorHandle,
     lang: asString(legacy.lang),
     replyTo: asString(legacy.in_reply_to_status_id_str),
