@@ -1,0 +1,9 @@
+<resources>
+  <color name="colorPrimary">#123B4A</color>
+  <color name="colorPrimaryDark">#0B2630</color>
+  <color name="windowBackground">#F3EEE4</color>
+  <color name="cardBackground">#FFFCF7</color>
+  <color name="iconBackground">#F3EEE4</color>
+  <color name="textPrimary">#172126</color>
+  <color name="textSecondary">#5C686E</color>
+</resources>

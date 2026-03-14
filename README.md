@@ -1,72 +1,37 @@
 # ReadMyFeed
 
-An Expo (React Native) app that connects to social media feeds (currently X/Twitter) and displays them in a unified interface.
+`readmyfeed` is now an Android-native Kotlin project.
 
-## Features
+This branch is the clean native migration line. The old Expo codebase lives on `expo-version`.
 
-- Unified feed view for multiple social platforms
-- X/Twitter authentication and timeline integration
-- Service-based architecture with dependency injection for testability
+## Current Status
 
-## Prerequisites
+- Expo/React Native app files were removed from `master`
+- Native Android project lives in `android/`
+- X core translation has started with Kotlin auth/session helpers, timeline request logic, parser, and pagination utilities
+- Native WebView login flow, feed UI wiring, TTS, and Telegram migration are still pending
 
-- Node.js 18+
-- Expo CLI
-- Android Studio (for Android development)
-- Xcode (for iOS development)
-
-## Installation
+## Build
 
 ```bash
-npm install
+cd android
+./gradlew testDebugUnitTest
+./gradlew assembleDebug
 ```
 
-## Running the App
+## Project Layout
 
-```bash
-# Start development server
-npm start
-
-# Run on Android
-npm run android
-
-# Run on iOS
-npm run ios
-
-# Run web version
-npm run web
+```text
+android/
+  app/
+    src/main/kotlin/com/yonisirote/readmyfeed/
+      x/auth/           # Session, cookie, and auth helpers
+      x/timeline/       # Timeline request, parser, and pagination
+    src/test/kotlin/    # JVM unit tests for migrated Kotlin logic
 ```
 
-## Development
+## Migration Notes
 
-```bash
-# Run linter
-npm run lint
-
-# Format code
-npm run format
-
-# Run tests
-npm test
-```
-
-## Architecture
-
-```
-app/                    # Expo Router screens
-  (auth)/               # Auth flow screens
-src/
-  services/             # Business logic
-    x/
-      auth/             # X authentication
-      timeline/         # X timeline fetching
-```
-
-## Tech Stack
-
-- Expo SDK 54
-- React Native 0.81
-- React 19
-- TypeScript
-- Expo Router (file-based routing)
-- Expo Secure Store (secure storage)
+- X login capture via Android `WebView` is intentionally deferred because the current flow depends on timing-sensitive cookie capture heuristics.
+- The first native pass focuses on the safe core: stored session handling, request construction, payload parsing, and pagination rules.
+- After the X core is wired to a native screen, the next planned service migration is Telegram.

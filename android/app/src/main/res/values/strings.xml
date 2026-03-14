@@ -1,0 +1,17 @@
+<resources>
+  <string name="app_name">ReadMyFeed</string>
+  <string name="main_title">ReadMyFeed</string>
+  <string name="main_subtitle">Native Android migration</string>
+  <string name="translated_title">X core translated</string>
+  <string name="translated_body">Ported so far:
+- session models and cookie utilities
+- stored X session handling
+- following-timeline request builder
+- defensive timeline parser
+- pagination helpers</string>
+  <string name="pending_title">Still pending</string>
+  <string name="pending_body">- native WebView login capture
+- feed UI wiring
+- TTS migration
+- Telegram service</string>
+</resources>
