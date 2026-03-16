@@ -1,17 +1,59 @@
 <resources>
   <string name="app_name">ReadMyFeed</string>
   <string name="main_title">ReadMyFeed</string>
-  <string name="main_subtitle">Native Android migration</string>
-  <string name="translated_title">X core translated</string>
-  <string name="translated_body">Ported so far:
-- session models and cookie utilities
-- stored X session handling
-- following-timeline request builder
-- defensive timeline parser
-- pagination helpers</string>
-  <string name="pending_title">Still pending</string>
-  <string name="pending_body">- native WebView login capture
-- feed UI wiring
-- TTS migration
-- Telegram service</string>
+  <string name="main_subtitle">Connect X, capture the web session, and fetch the following timeline natively on Android.</string>
+  <string name="x_flow_label">X flow</string>
+  <string name="connect_x">Connect X</string>
+  <string name="reconnect_x">Reconnect X</string>
+  <string name="refresh_feed">Refresh feed</string>
+  <string name="load_more">Load more posts</string>
+  <string name="status_connect_title">Connect your X account</string>
+  <string name="status_connect_body">Open the embedded X login so the app can capture the cookies required for the Following timeline.</string>
+  <string name="status_login_title">Sign in with your X password</string>
+  <string name="status_login_body">This cookie-based flow works best with username or email plus password. Google and SSO login are not supported here.</string>
+  <string name="status_capturing_title">Capturing your X session</string>
+  <string name="status_capturing_body">Waiting for the required auth cookies to land in the WebView cookie store.</string>
+  <string name="status_fetching_title">Loading your following feed</string>
+  <string name="status_fetching_body">Pulling the latest batch from the X web timeline endpoint.</string>
+  <string name="status_ready_title">Following feed ready</string>
+  <string name="status_ready_body">%1$d posts are loaded from your X following timeline.</string>
+  <string name="status_error_title">X flow needs attention</string>
+  <string name="empty_title">No feed loaded yet</string>
+  <string name="empty_body">Connect X to fetch the people you follow and keep the session stored on-device.</string>
+  <string name="empty_feed_title">Connected, but the feed came back empty</string>
+  <string name="empty_feed_body">X returned an empty batch right now. Try refreshing or reconnecting.</string>
+  <string name="feed_section_title">Following feed</string>
+  <string name="play_feed">Play tweets</string>
+  <string name="stop_feed_audio">Stop audio</string>
+  <string name="feed_summary_fetching">Connected to X. Loading the first batch now.</string>
+  <string name="feed_summary_ready_more">%1$d posts loaded so far. More posts are available.</string>
+  <string name="feed_summary_ready_end">%1$d posts loaded so far. This is the end of the current timeline window.</string>
+  <string name="feed_summary_loading_more">%1$d posts loaded so far. Fetching more posts from X.</string>
+  <string name="feed_speech_status_idle">Ready to read the loaded timeline aloud.</string>
+  <string name="feed_speech_status_loading">Preparing tweet playback...</string>
+  <string name="feed_speech_status_playing">Reading tweet %1$d of %2$d...</string>
+  <string name="feed_speech_status_done">Finished reading %1$d tweets.</string>
+  <string name="feed_speech_status_stopped">Tweet playback stopped.</string>
+  <string name="feed_speech_status_no_items">No tweet text is ready to read yet.</string>
+  <string name="feed_speech_status_skipped">Read %1$d tweets. Skipped %2$d because no supported voice was available.</string>
+  <string name="feed_speech_status_error_prefix">Unable to read tweets:</string>
+  <string name="loading_capture">Capturing session...</string>
+  <string name="loading_feed">Loading the first batch...</string>
+  <string name="loading_more">Loading more posts...</string>
+  <string name="generic_auth_error">Unexpected error while logging in.</string>
+  <string name="generic_timeline_error">Connected to X but failed to load the following feed.</string>
+  <string name="tweet_fallback_text">[No text]</string>
+  <string name="feed_unknown_author">Unknown author</string>
+  <string name="feed_handle_format">@%1$s</string>
+  <string name="feed_quote_label">Quoted post</string>
+  <string name="feed_quote_from_handle">Quoted post from @%1$s</string>
+  <string name="feed_media_label">Media: %1$s</string>
+  <string name="feed_quoted_media_label">Quoted media: %1$s</string>
+  <string name="feed_post_type_post">Post</string>
+  <string name="feed_post_type_reply">Reply</string>
+  <string name="feed_post_type_repost">Repost</string>
+  <string name="feed_count_replies">%1$s replies</string>
+  <string name="feed_count_reposts">%1$s reposts</string>
+  <string name="feed_count_likes">%1$s likes</string>
+  <string name="feed_count_views">%1$s views</string>
 </resources>

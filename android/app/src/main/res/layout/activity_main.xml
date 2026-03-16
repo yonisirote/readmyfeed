@@ -1,73 +1,283 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/windowBackground"
-    android:fillViewport="true">
+    android:orientation="vertical"
+    android:paddingStart="20dp"
+    android:paddingTop="24dp"
+    android:paddingEnd="20dp"
+    android:paddingBottom="20dp">
 
-  <LinearLayout
+  <TextView
+      android:id="@+id/mainTitleTextView"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:text="@string/main_title"
+      android:textColor="@color/textPrimary"
+      android:textSize="32sp"
+      android:textStyle="bold" />
+
+  <TextView
+      android:id="@+id/mainSubtitleTextView"
       android:layout_width="match_parent"
       android:layout_height="wrap_content"
-      android:orientation="vertical"
-      android:padding="24dp">
+      android:layout_marginTop="8dp"
+      android:lineSpacingExtra="3dp"
+      android:text="@string/main_subtitle"
+      android:textColor="@color/textSecondary"
+      android:textSize="16sp" />
+
+  <LinearLayout
+      android:id="@+id/statusPanel"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:layout_marginTop="20dp"
+      android:background="@drawable/panel_surface"
+      android:orientation="vertical">
 
     <TextView
+        android:id="@+id/flowLabelTextView"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="@string/main_title"
-        android:textColor="@color/textPrimary"
-        android:textSize="30sp"
+        android:text="@string/x_flow_label"
+        android:textColor="@color/colorPrimary"
+        android:textSize="12sp"
         android:textStyle="bold" />
 
     <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:text="@string/main_subtitle"
-        android:textColor="@color/textSecondary"
-        android:textSize="16sp" />
-
-    <LinearLayout
+        android:id="@+id/statusTitleTextView"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="24dp"
+        android:layout_marginTop="12dp"
+        android:textColor="@color/textPrimary"
+        android:textSize="22sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/statusBodyTextView"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:lineSpacingExtra="4dp"
+        android:textColor="@color/textSecondary"
+        android:textSize="15sp" />
+
+    <LinearLayout
+        android:id="@+id/actionRow"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="18dp"
+        android:orientation="horizontal">
+
+      <Button
+          android:id="@+id/connectButton"
+          android:layout_width="0dp"
+          android:layout_height="48dp"
+          android:layout_weight="1"
+          android:background="@drawable/button_primary"
+          android:text="@string/connect_x"
+          android:textAllCaps="false"
+          android:textColor="@color/white"
+          android:textSize="15sp"
+          android:textStyle="bold" />
+
+      <Button
+          android:id="@+id/refreshButton"
+          android:layout_width="0dp"
+          android:layout_height="48dp"
+          android:layout_marginStart="12dp"
+          android:layout_weight="1"
+          android:background="@drawable/button_secondary"
+          android:text="@string/refresh_feed"
+          android:textAllCaps="false"
+          android:textColor="@color/colorPrimary"
+          android:textSize="15sp"
+          android:textStyle="bold"
+          android:visibility="gone" />
+    </LinearLayout>
+  </LinearLayout>
+
+  <FrameLayout
+      android:id="@+id/contentContainer"
+      android:layout_width="match_parent"
+      android:layout_height="0dp"
+      android:layout_marginTop="18dp"
+      android:layout_weight="1">
+
+    <LinearLayout
+        android:id="@+id/emptyStateView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
         android:background="@drawable/panel_surface"
+        android:gravity="center"
         android:orientation="vertical">
 
       <TextView
+          android:id="@+id/emptyTitleTextView"
           android:layout_width="wrap_content"
           android:layout_height="wrap_content"
-          android:text="@string/translated_title"
           android:textColor="@color/textPrimary"
           android:textSize="20sp"
           android:textStyle="bold" />
 
       <TextView
-          android:layout_width="wrap_content"
+          android:id="@+id/emptyBodyTextView"
+          android:layout_width="match_parent"
           android:layout_height="wrap_content"
-          android:layout_marginTop="12dp"
+          android:layout_marginTop="10dp"
+          android:gravity="center"
           android:lineSpacingExtra="4dp"
-          android:text="@string/translated_body"
-          android:textColor="@color/textSecondary"
-          android:textSize="15sp" />
-
-      <TextView
-          android:layout_width="wrap_content"
-          android:layout_height="wrap_content"
-          android:layout_marginTop="24dp"
-          android:text="@string/pending_title"
-          android:textColor="@color/textPrimary"
-          android:textSize="20sp"
-          android:textStyle="bold" />
-
-      <TextView
-          android:layout_width="wrap_content"
-          android:layout_height="wrap_content"
-          android:layout_marginTop="12dp"
-          android:lineSpacingExtra="4dp"
-          android:text="@string/pending_body"
           android:textColor="@color/textSecondary"
           android:textSize="15sp" />
     </LinearLayout>
-  </LinearLayout>
-</ScrollView>
+
+    <WebView
+        android:id="@+id/xWebView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@color/cardBackground"
+        android:visibility="gone" />
+
+    <LinearLayout
+        android:id="@+id/feedContainer"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@drawable/panel_surface"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+      <TextView
+          android:id="@+id/feedSectionTitleTextView"
+          android:layout_width="match_parent"
+          android:layout_height="wrap_content"
+          android:text="@string/feed_section_title"
+          android:textColor="@color/textPrimary"
+          android:textSize="20sp"
+          android:textStyle="bold" />
+
+      <TextView
+          android:id="@+id/feedSummaryTextView"
+          android:layout_width="match_parent"
+          android:layout_height="wrap_content"
+          android:layout_marginTop="6dp"
+          android:lineSpacingExtra="3dp"
+          android:textColor="@color/textSecondary"
+          android:textSize="14sp" />
+
+      <LinearLayout
+          android:id="@+id/speechControlsRow"
+          android:layout_width="match_parent"
+          android:layout_height="wrap_content"
+          android:layout_marginTop="16dp"
+          android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/playFeedButton"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_weight="1"
+            android:background="@drawable/button_primary"
+            android:text="@string/play_feed"
+            android:textAllCaps="false"
+            android:textColor="@color/white"
+            android:textSize="15sp"
+            android:textStyle="bold" />
+
+        <Button
+            android:id="@+id/stopFeedButton"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_marginStart="12dp"
+            android:layout_weight="1"
+            android:background="@drawable/button_secondary"
+            android:enabled="false"
+            android:text="@string/stop_feed_audio"
+            android:textAllCaps="false"
+            android:textColor="@color/colorPrimary"
+            android:textSize="15sp"
+            android:textStyle="bold" />
+      </LinearLayout>
+
+      <TextView
+          android:id="@+id/speechStatusTextView"
+          android:layout_width="match_parent"
+          android:layout_height="wrap_content"
+          android:layout_marginTop="10dp"
+          android:lineSpacingExtra="3dp"
+          android:text="@string/feed_speech_status_idle"
+          android:textColor="@color/textSecondary"
+          android:textSize="14sp" />
+
+      <androidx.recyclerview.widget.RecyclerView
+          android:id="@+id/feedRecyclerView"
+          android:layout_width="match_parent"
+          android:layout_height="0dp"
+          android:layout_weight="1"
+          android:clipToPadding="false"
+          android:overScrollMode="never"
+          android:paddingTop="16dp"
+          android:paddingBottom="16dp" />
+
+      <Button
+          android:id="@+id/loadMoreButton"
+          android:layout_width="match_parent"
+          android:layout_height="48dp"
+          android:background="@drawable/button_secondary"
+          android:text="@string/load_more"
+          android:textAllCaps="false"
+          android:textColor="@color/colorPrimary"
+          android:textSize="15sp"
+          android:textStyle="bold"
+          android:visibility="gone" />
+
+      <LinearLayout
+          android:id="@+id/loadMoreProgressRow"
+          android:layout_width="match_parent"
+          android:layout_height="wrap_content"
+          android:gravity="center"
+          android:orientation="horizontal"
+          android:paddingTop="12dp"
+          android:visibility="gone">
+
+        <ProgressBar
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" />
+
+        <TextView
+            android:id="@+id/loadMoreProgressTextView"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:text="@string/loading_more"
+            android:textColor="@color/textSecondary"
+            android:textSize="14sp" />
+      </LinearLayout>
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/loadingOverlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@color/loadingOverlay"
+        android:clickable="true"
+        android:focusable="true"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+      <ProgressBar
+          android:layout_width="wrap_content"
+          android:layout_height="wrap_content" />
+
+      <TextView
+          android:id="@+id/loadingTextView"
+          android:layout_width="wrap_content"
+          android:layout_height="wrap_content"
+          android:layout_marginTop="10dp"
+          android:textColor="@color/textPrimary"
+          android:textSize="15sp"
+          android:textStyle="bold" />
+    </LinearLayout>
+  </FrameLayout>
+</LinearLayout>

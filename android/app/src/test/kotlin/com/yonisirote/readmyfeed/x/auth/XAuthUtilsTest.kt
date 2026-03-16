@@ -15,6 +15,14 @@ class XAuthUtilsTest {
   }
 
   @Test
+  fun detectsAllowedOriginsForFallbackCapture() {
+    assertTrue(hasAllowedXOrigin("https://x.com/i/flow/login"))
+    assertTrue(hasAllowedXOrigin("https://twitter.com/home"))
+    assertFalse(hasAllowedXOrigin("https://example.com/home"))
+    assertFalse(hasAllowedXOrigin(null))
+  }
+
+  @Test
   fun parsesAndBuildsCookieHeaderInStableOrder() {
     val cookies = parseCookieHeader("twid=u%3D1; ct0=csrf; auth_token=token; kdt=device; extra=ignored")
     val cookieString = buildCookieString(cookies)

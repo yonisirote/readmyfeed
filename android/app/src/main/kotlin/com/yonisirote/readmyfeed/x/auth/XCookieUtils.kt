@@ -2,14 +2,14 @@ package com.yonisirote.readmyfeed.x.auth
 
 import java.net.URI
 
-fun looksLikeLoggedInUrl(url: String?): Boolean {
+private fun extractOrigin(url: String?): String? {
   if (url.isNullOrBlank()) {
-    return false
+    return null
   }
 
   return try {
     val parsed = URI(url)
-    val origin = buildString {
+    buildString {
       append(parsed.scheme)
       append("://")
       append(parsed.host)
@@ -18,7 +18,21 @@ fun looksLikeLoggedInUrl(url: String?): Boolean {
         append(parsed.port)
       }
     }
+  } catch (_: Exception) {
+    null
+  }
+}
 
+fun hasAllowedXOrigin(url: String?): Boolean {
+  val origin = extractOrigin(url) ?: return false
+  return X_ALLOWED_ORIGINS.contains(origin)
+}
+
+fun looksLikeLoggedInUrl(url: String?): Boolean {
+  val origin = extractOrigin(url) ?: return false
+
+  return try {
+    val parsed = URI(url)
     origin == X_BASE_URL && POST_LOGIN_PATH_HINTS.any { hint -> parsed.path.orEmpty().startsWith(hint) }
   } catch (_: Exception) {
     false

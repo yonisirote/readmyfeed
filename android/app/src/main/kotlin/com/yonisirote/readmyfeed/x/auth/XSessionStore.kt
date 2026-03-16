@@ -3,7 +3,7 @@ package com.yonisirote.readmyfeed.x.auth
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
-import androidx.security.crypto.MasterKeys
+import androidx.security.crypto.MasterKey
 
 interface XSessionStore {
   fun get(): String?
@@ -14,12 +14,14 @@ interface XSessionStore {
 class PreferencesXSessionStore(context: Context) : XSessionStore {
   private val preferences: SharedPreferences = try {
     val appContext = context.applicationContext
-    val masterKeyAlias = MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC)
+    val masterKey = MasterKey.Builder(appContext)
+      .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+      .build()
 
     EncryptedSharedPreferences.create(
-      X_SESSION_PREFERENCES_NAME,
-      masterKeyAlias,
       appContext,
+      X_SESSION_PREFERENCES_NAME,
+      masterKey,
       EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
       EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
     )
