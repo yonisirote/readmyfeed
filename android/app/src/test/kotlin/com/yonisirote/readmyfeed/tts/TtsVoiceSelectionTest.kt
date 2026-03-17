@@ -61,4 +61,126 @@ class TtsVoiceSelectionTest {
 
     assertNull(findBestVoiceForLanguage(voices, "fr-FR"))
   }
+
+  @Test
+  fun prefersEnhancedQualityOverDefault() {
+    val voices = listOf(
+      TtsVoice(
+        identifier = "en-default",
+        language = "en-US",
+        quality = TtsVoiceQuality.DEFAULT,
+      ),
+      TtsVoice(
+        identifier = "en-enhanced",
+        language = "en-US",
+        quality = TtsVoiceQuality.ENHANCED,
+      ),
+    )
+
+    val matchedVoice = findBestVoiceForLanguage(voices, "en-US")
+
+    assertNotNull(matchedVoice)
+    assertEquals("en-enhanced", matchedVoice?.identifier)
+  }
+
+  @Test
+  fun prefersLocalVoiceOverNetworkVoice() {
+    val voices = listOf(
+      TtsVoice(
+        identifier = "en-network-voice",
+        language = "en-US",
+        quality = TtsVoiceQuality.DEFAULT,
+        requiresNetwork = true,
+      ),
+      TtsVoice(
+        identifier = "en-local-voice",
+        language = "en-US",
+        quality = TtsVoiceQuality.DEFAULT,
+      ),
+    )
+
+    val matchedVoice = findBestVoiceForLanguage(voices, "en-US")
+
+    assertNotNull(matchedVoice)
+    assertEquals("en-local-voice", matchedVoice?.identifier)
+  }
+
+  @Test
+  fun fallsBackToPrimaryLanguageWhenRegionNotFound() {
+    val voices = listOf(
+      TtsVoice(
+        identifier = "french-voice",
+        language = "fr",
+        quality = TtsVoiceQuality.DEFAULT,
+      ),
+    )
+
+    val matchedVoice = findBestVoiceForLanguage(voices, "fr-FR")
+
+    assertNotNull(matchedVoice)
+    assertEquals("french-voice", matchedVoice?.identifier)
+  }
+
+  @Test
+  fun handlesHebrewIwAliasWithoutRegion() {
+    val voices = listOf(
+      TtsVoice(
+        identifier = "iw-voice",
+        language = "iw",
+        quality = TtsVoiceQuality.DEFAULT,
+      ),
+    )
+
+    val matchedVoice = findBestVoiceForLanguage(voices, "he")
+
+    assertNotNull(matchedVoice)
+    assertEquals("iw-voice", matchedVoice?.identifier)
+  }
+
+  @Test
+  fun returnsNullForEmptyVoiceList() {
+    assertNull(findBestVoiceForLanguage(emptyList(), "en-US"))
+  }
+
+  @Test
+  fun penalizesPlaceholderVoiceNames() {
+    val voices = listOf(
+      TtsVoice(
+        identifier = "en-us-language",
+        language = "en-US",
+        quality = TtsVoiceQuality.DEFAULT,
+      ),
+      TtsVoice(
+        identifier = "en-us-real",
+        language = "en-US",
+        quality = TtsVoiceQuality.DEFAULT,
+      ),
+    )
+
+    val matchedVoice = findBestVoiceForLanguage(voices, "en-US")
+
+    assertNotNull(matchedVoice)
+    assertEquals("en-us-real", matchedVoice?.identifier)
+  }
+
+  @Test
+  fun prefersDefaultNamedVoiceWhenQualityIsTied() {
+    val voices = listOf(
+      TtsVoice(
+        identifier = "en-us-other",
+        language = "en-US",
+        quality = TtsVoiceQuality.DEFAULT,
+      ),
+      TtsVoice(
+        identifier = "en-us-default",
+        language = "en-US",
+        quality = TtsVoiceQuality.DEFAULT,
+      ),
+    )
+
+    val matchedVoice = findBestVoiceForLanguage(voices, "en-US")
+
+    assertNotNull(matchedVoice)
+    assertEquals("en-us-default", matchedVoice?.identifier)
+  }
 }

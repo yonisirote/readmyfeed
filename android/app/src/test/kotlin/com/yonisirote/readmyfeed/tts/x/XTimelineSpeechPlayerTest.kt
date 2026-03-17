@@ -106,10 +106,153 @@ class XTimelineSpeechPlayerTest {
     )
   }
 
+  @Test
+  fun returnsZerosForEmptyItemsList() = runBlocking {
+    val engine = FakeTtsEngine()
+    val player = XTimelineSpeechPlayer(TtsService(engine))
+
+    val summary = player.speak(emptyList())
+
+    assertEquals(0, summary.totalItems)
+    assertEquals(0, summary.speakableItems)
+    assertEquals(0, summary.spokenItems)
+    assertEquals(0, summary.skippedItems)
+  }
+
+  @Test
+  fun skipsItemsWithBlankText() = runBlocking {
+    val engine = FakeTtsEngine(
+      availableVoices = listOf(
+        TtsVoice(
+          identifier = "en-us-local",
+          language = "en-US",
+          quality = TtsVoiceQuality.DEFAULT,
+        ),
+      ),
+    )
+    val player = XTimelineSpeechPlayer(TtsService(engine))
+
+    val summary = player.speak(
+      listOf(
+        createTimelineItem(id = "1", text = "   "),
+        createTimelineItem(id = "2", text = ""),
+        createTimelineItem(id = "3", text = "Visible"),
+      ),
+    )
+
+    assertEquals(3, summary.totalItems)
+    assertEquals(1, summary.spokenItems)
+    assertEquals(2, summary.skippedItems)
+    assertTrue(engine.spokenTexts.single().contains("Visible"))
+  }
+
+  @Test
+  fun invokesOnItemStartCallback() = runBlocking {
+    val engine = FakeTtsEngine(
+      availableVoices = listOf(
+        TtsVoice(
+          identifier = "en-us-local",
+          language = "en-US",
+          quality = TtsVoiceQuality.DEFAULT,
+        ),
+      ),
+    )
+    val player = XTimelineSpeechPlayer(TtsService(engine))
+    val callbacks = mutableListOf<Triple<String, Int, Int>>()
+
+    player.speak(
+      listOf(
+        createTimelineItem(id = "1", text = "First"),
+        createTimelineItem(id = "2", text = "Second"),
+      ),
+      onItemStart = { item, index, total ->
+        callbacks += Triple(item.id, index, total)
+      },
+    )
+
+    assertEquals(
+      listOf(Triple("1", 1, 2), Triple("2", 2, 2)),
+      callbacks,
+    )
+  }
+
+  @Test
+  fun emptyItemsListReturnsFalseForHasSpeakable() {
+    val player = XTimelineSpeechPlayer(TtsService(FakeTtsEngine()))
+
+    assertFalse(player.hasSpeakableItems(emptyList()))
+  }
+
+  @Test
+  fun stopDelegatesToTtsService() = runBlocking {
+    val engine = FakeTtsEngine(
+      availableVoices = listOf(
+        TtsVoice(
+          identifier = "en-us-local",
+          language = "en-US",
+          quality = TtsVoiceQuality.DEFAULT,
+        ),
+      ),
+    )
+    val player = XTimelineSpeechPlayer(TtsService(engine))
+    player.speak(listOf(createTimelineItem(text = "Init")))
+
+    player.stop()
+
+    assertTrue(engine.stopCalled)
+  }
+
+  @Test
+  fun shutdownDeinitializesTtsService() = runBlocking {
+    val engine = FakeTtsEngine(
+      availableVoices = listOf(
+        TtsVoice(
+          identifier = "en-us-local",
+          language = "en-US",
+          quality = TtsVoiceQuality.DEFAULT,
+        ),
+      ),
+    )
+    val service = TtsService(engine)
+    val player = XTimelineSpeechPlayer(service)
+    player.speak(listOf(createTimelineItem(text = "Init")))
+
+    player.shutdown()
+
+    assertTrue(engine.shutdownCalled)
+    engine.spokenTexts.clear()
+
+    // After shutdown, player re-initializes on next speak call
+    player.speak(listOf(createTimelineItem(text = "After restart")))
+    assertTrue(engine.spokenTexts.single().contains("After restart"))
+  }
+
+  @Test
+  fun playbackRateIsPassedToSpeakOptions() = runBlocking {
+    val engine = FakeTtsEngine(
+      availableVoices = listOf(
+        TtsVoice(
+          identifier = "en-us-local",
+          language = "en-US",
+          quality = TtsVoiceQuality.DEFAULT,
+        ),
+      ),
+    )
+    val player = XTimelineSpeechPlayer(TtsService(engine), playbackRate = 1.5f)
+
+    player.speak(listOf(createTimelineItem(text = "Rate test")))
+
+    assertEquals(1, engine.spokenOptions.size)
+    assertEquals(1.5f, engine.spokenOptions.first().rate)
+  }
+
   private class FakeTtsEngine(
     private val availableVoices: List<TtsVoice> = emptyList(),
   ) : TtsEngine {
     val spokenTexts = mutableListOf<String>()
+    val spokenOptions = mutableListOf<TtsSpeakOptions>()
+    var stopCalled = false
+    var shutdownCalled = false
 
     override suspend fun initialize() = Unit
 
@@ -117,10 +260,15 @@ class XTimelineSpeechPlayerTest {
 
     override suspend fun speak(text: String, options: TtsSpeakOptions) {
       spokenTexts += text
+      spokenOptions += options
     }
 
-    override fun stop() = Unit
+    override fun stop() {
+      stopCalled = true
+    }
 
-    override fun shutdown() = Unit
+    override fun shutdown() {
+      shutdownCalled = true
+    }
   }
 }

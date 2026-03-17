@@ -73,4 +73,129 @@ class XTimelinePaginationTest {
       ),
     )
   }
+
+  @Test
+  fun mergesEmptyExistingWithIncoming() {
+    val merged = mergeTimelineItems(
+      emptyList(),
+      listOf(createTimelineItem("1"), createTimelineItem("2")),
+    )
+
+    assertEquals(listOf("1", "2"), merged.map { it.id })
+  }
+
+  @Test
+  fun mergesExistingWithEmptyIncoming() {
+    val merged = mergeTimelineItems(
+      listOf(createTimelineItem("1"), createTimelineItem("2")),
+      emptyList(),
+    )
+
+    assertEquals(listOf("1", "2"), merged.map { it.id })
+  }
+
+  @Test
+  fun mergesBothEmpty() {
+    val merged = mergeTimelineItems(emptyList(), emptyList())
+
+    assertTrue(merged.isEmpty())
+  }
+
+  @Test
+  fun skipsBlankIds() {
+    val merged = mergeTimelineItems(
+      listOf(createTimelineItem("1"), createTimelineItem("")),
+      listOf(createTimelineItem("  "), createTimelineItem("2")),
+    )
+
+    assertEquals(listOf("1", "2"), merged.map { it.id })
+  }
+
+  @Test
+  fun preservesOrderFromExistingThenIncoming() {
+    val merged = mergeTimelineItems(
+      listOf(createTimelineItem("a"), createTimelineItem("b")),
+      listOf(createTimelineItem("c"), createTimelineItem("d")),
+    )
+
+    assertEquals(listOf("a", "b", "c", "d"), merged.map { it.id })
+  }
+
+  @Test
+  fun doesNotPrefetchWhenFarFromEnd() {
+    assertFalse(
+      shouldPrefetchTimeline(
+        currentIndex = 0,
+        loadedCount = 40,
+        nextCursor = "cursor-123",
+        isFetchingMore = false,
+      ),
+    )
+  }
+
+  @Test
+  fun doesNotPrefetchWithNegativeIndex() {
+    assertFalse(
+      shouldPrefetchTimeline(
+        currentIndex = -1,
+        loadedCount = 40,
+        nextCursor = "cursor-123",
+        isFetchingMore = false,
+      ),
+    )
+  }
+
+  @Test
+  fun doesNotPrefetchWithZeroLoadedCount() {
+    assertFalse(
+      shouldPrefetchTimeline(
+        currentIndex = 0,
+        loadedCount = 0,
+        nextCursor = "cursor-123",
+        isFetchingMore = false,
+      ),
+    )
+  }
+
+  @Test
+  fun prefetchesAtExactThreshold() {
+    val loadedCount = 20
+    val currentIndex = loadedCount - TIMELINE_PREFETCH_THRESHOLD - 1
+
+    assertTrue(
+      shouldPrefetchTimeline(
+        currentIndex = currentIndex,
+        loadedCount = loadedCount,
+        nextCursor = "cursor-123",
+        isFetchingMore = false,
+      ),
+    )
+  }
+
+  @Test
+  fun doesNotPrefetchOneAboveThreshold() {
+    val loadedCount = 20
+    val currentIndex = loadedCount - TIMELINE_PREFETCH_THRESHOLD - 2
+
+    assertFalse(
+      shouldPrefetchTimeline(
+        currentIndex = currentIndex,
+        loadedCount = loadedCount,
+        nextCursor = "cursor-123",
+        isFetchingMore = false,
+      ),
+    )
+  }
+
+  @Test
+  fun doesNotPrefetchWithBlankCursor() {
+    assertFalse(
+      shouldPrefetchTimeline(
+        currentIndex = 35,
+        loadedCount = 40,
+        nextCursor = "   ",
+        isFetchingMore = false,
+      ),
+    )
+  }
 }

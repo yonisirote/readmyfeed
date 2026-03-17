@@ -32,5 +32,5 @@ fun getSpeakableItemText(item: SpeakableItem): String {
     "says:"
   }
 
-  return "${item.authorLabel.trim()} $connector ${item.text}".trim()
+  return "${item.authorLabel.trim()} $connector ${item.text.trim()}".trim()
 }

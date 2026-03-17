@@ -110,6 +110,104 @@ class TtsServiceTest {
     throw AssertionError("Expected TtsException after deinitialize")
   }
 
+  @Test
+  fun skipsSpeakingEmptyText() = runBlocking {
+    val engine = FakeTtsEngine()
+    val service = TtsService(engine)
+
+    service.initialize()
+    service.speak("")
+
+    assertTrue(engine.speakCalls.isEmpty())
+  }
+
+  @Test
+  fun skipsSpeakingWhitespaceText() = runBlocking {
+    val engine = FakeTtsEngine()
+    val service = TtsService(engine)
+
+    service.initialize()
+    service.speak("  ")
+
+    assertTrue(engine.speakCalls.isEmpty())
+  }
+
+  @Test
+  fun trimsTextBeforeSpeaking() = runBlocking {
+    val engine = FakeTtsEngine()
+    val service = TtsService(engine)
+
+    service.initialize()
+    service.speak("  hello  ")
+
+    assertEquals(1, engine.speakCalls.size)
+    assertEquals("hello", engine.speakCalls.single().text)
+  }
+
+  @Test
+  fun shutdownIsIdempotent() = runBlocking {
+    val engine = FakeTtsEngine()
+    val service = TtsService(engine)
+
+    service.initialize()
+    service.shutdown()
+    service.shutdown()
+
+    assertEquals(1, engine.shutdownCount)
+  }
+
+  @Test
+  fun stopBeforeInitializeDoesNotThrow() {
+    val service = TtsService(FakeTtsEngine())
+
+    service.stop()
+  }
+
+  @Test
+  fun shutdownBeforeInitializeDoesNotThrow() {
+    val service = TtsService(FakeTtsEngine())
+
+    service.shutdown()
+  }
+
+  @Test
+  fun hasLanguageSupportThrowsBeforeInit() {
+    val service = TtsService(FakeTtsEngine())
+
+    try {
+      service.hasLanguageSupport("en-US")
+    } catch (error: TtsException) {
+      assertEquals(TtsErrorCodes.NOT_INITIALIZED, error.code)
+      return
+    }
+
+    throw AssertionError("Expected TtsException")
+  }
+
+  @Test
+  fun preservesVoiceWhenAlreadySet() = runBlocking {
+    val engine = FakeTtsEngine(
+      availableVoices = listOf(
+        TtsVoice(
+          identifier = "hebrew-voice",
+          language = "iw-IL",
+          quality = TtsVoiceQuality.DEFAULT,
+        ),
+      ),
+    )
+    val service = TtsService(engine)
+
+    service.initialize()
+    service.speak(
+      "שלום",
+      TtsSpeakOptions(language = "he-IL", voice = "custom-voice"),
+    )
+
+    assertEquals(1, engine.speakCalls.size)
+    assertEquals("custom-voice", engine.speakCalls.single().options.voice)
+    assertEquals("he-IL", engine.speakCalls.single().options.language)
+  }
+
   private class FakeTtsEngine(
     private val availableVoices: List<TtsVoice> = emptyList(),
   ) : TtsEngine {
