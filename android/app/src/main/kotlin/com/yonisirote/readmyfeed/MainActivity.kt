@@ -9,9 +9,9 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.Toast
 import androidx.activity.addCallback
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.content.ContextCompat
 import androidx.core.view.isVisible
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -63,6 +63,9 @@ class MainActivity : AppCompatActivity() {
   private var fetchJob: Job? = null
   private var speakJob: Job? = null
 
+  private enum class Screen { HOME, SIGN_IN, FEED }
+  private var currentScreen = Screen.HOME
+
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     binding = ActivityMainBinding.inflate(layoutInflater)
@@ -73,10 +76,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     setupRecyclerView()
-    setupButtons()
+    setupHomeScreen()
+    setupSignInScreen()
+    setupFeedScreen()
     setupWebView()
     setupBackPressHandler()
-    renderConnectPrompt()
+    showScreen(Screen.HOME)
     maybeLoadStoredSession()
   }
 
@@ -104,15 +109,98 @@ class MainActivity : AppCompatActivity() {
       feedAdapter = XTimelineFeedAdapter()
       true
     } catch (error: XAuthException) {
-      renderError(error.message ?: getString(R.string.generic_auth_error), preserveFeed = false)
-      binding.connectButton.isEnabled = false
-      binding.refreshButton.isEnabled = false
-      binding.loadMoreButton.isEnabled = false
-      binding.playFeedButton.isEnabled = false
-      binding.stopFeedButton.isEnabled = false
+      Toast.makeText(this, error.message ?: getString(R.string.generic_auth_error), Toast.LENGTH_LONG).show()
       false
     }
   }
+
+  // ── Screen navigation ──────────────────────────────────────────────
+
+  private fun showScreen(screen: Screen) {
+    currentScreen = screen
+    binding.homeScreen.isVisible = screen == Screen.HOME
+    binding.xSignInScreen.isVisible = screen == Screen.SIGN_IN
+    binding.feedScreen.isVisible = screen == Screen.FEED
+    binding.loadingOverlay.isVisible = false
+  }
+
+  // ── Home screen ────────────────────────────────────────────────────
+
+  private fun setupHomeScreen() {
+    binding.homeCardX.setOnClickListener {
+      if (hasStoredSession) {
+        showScreen(Screen.FEED)
+        fetchFollowingTimeline(append = false)
+      } else {
+        startLoginFlow(clearExistingSession = false)
+      }
+    }
+  }
+
+  // ── Sign-in screen ─────────────────────────────────────────────────
+
+  private fun setupSignInScreen() {
+    binding.backFromSignIn.setOnClickListener {
+      binding.xWebView.stopLoading()
+      captureJob?.cancel()
+      captureInFlight = false
+      didCapture = false
+      showScreen(Screen.HOME)
+    }
+  }
+
+  private fun showSignInStatus(text: String) {
+    binding.signInStatusBar.isVisible = true
+    binding.signInProgressBar.isVisible = true
+    binding.signInStatusText.text = text
+  }
+
+  private fun hideSignInStatus() {
+    binding.signInStatusBar.isVisible = false
+  }
+
+  // ── Feed screen ────────────────────────────────────────────────────
+
+  private fun setupFeedScreen() {
+    binding.backFromFeed.setOnClickListener {
+      if (isBusy()) {
+        return@setOnClickListener
+      }
+      stopFeedPlayback(null)
+      showScreen(Screen.HOME)
+    }
+
+    binding.refreshButton.setOnClickListener {
+      if (isBusy()) {
+        return@setOnClickListener
+      }
+      if (!hasStoredSession) {
+        startLoginFlow(clearExistingSession = false)
+        return@setOnClickListener
+      }
+      fetchFollowingTimeline(append = false)
+    }
+
+    binding.loadMoreButton.setOnClickListener {
+      if (isBusy()) {
+        return@setOnClickListener
+      }
+      fetchFollowingTimeline(append = true)
+    }
+
+    binding.playFeedButton.setOnClickListener {
+      if (isBusy() || isSpeakingFeed) {
+        return@setOnClickListener
+      }
+      startFeedPlayback()
+    }
+
+    binding.stopFeedButton.setOnClickListener {
+      stopFeedPlayback(getString(R.string.feed_speech_status_stopped))
+    }
+  }
+
+  // ── RecyclerView ───────────────────────────────────────────────────
 
   private fun setupRecyclerView() {
     val layoutManager = LinearLayoutManager(this)
@@ -133,49 +221,7 @@ class MainActivity : AppCompatActivity() {
     })
   }
 
-  private fun setupButtons() {
-    binding.connectButton.setOnClickListener {
-      if (isBusy()) {
-        return@setOnClickListener
-      }
-
-      val shouldClearSession = hasStoredSession || timelineItems.isNotEmpty()
-      startLoginFlow(clearExistingSession = shouldClearSession)
-    }
-
-    binding.refreshButton.setOnClickListener {
-      if (isBusy()) {
-        return@setOnClickListener
-      }
-
-      if (!hasStoredSession) {
-        startLoginFlow(clearExistingSession = false)
-        return@setOnClickListener
-      }
-
-      fetchFollowingTimeline(append = false)
-    }
-
-    binding.loadMoreButton.setOnClickListener {
-      if (isBusy()) {
-        return@setOnClickListener
-      }
-
-      fetchFollowingTimeline(append = true)
-    }
-
-    binding.playFeedButton.setOnClickListener {
-      if (isBusy() || isSpeakingFeed) {
-        return@setOnClickListener
-      }
-
-      startFeedPlayback()
-    }
-
-    binding.stopFeedButton.setOnClickListener {
-      stopFeedPlayback(getString(R.string.feed_speech_status_stopped))
-    }
-  }
+  // ── WebView ────────────────────────────────────────────────────────
 
   @SuppressLint("SetJavaScriptEnabled")
   private fun setupWebView() {
@@ -225,40 +271,55 @@ class MainActivity : AppCompatActivity() {
           return
         }
 
-        renderError(
+        showSignInError(
           error?.description?.toString().orEmpty().ifBlank { getString(R.string.generic_auth_error) },
-          preserveFeed = timelineItems.isNotEmpty(),
         )
       }
     }
   }
 
+  // ── Back press ─────────────────────────────────────────────────────
+
   private fun setupBackPressHandler() {
     onBackPressedDispatcher.addCallback(this) {
-      if (binding.xWebView.isVisible && binding.xWebView.canGoBack()) {
-        binding.xWebView.goBack()
-      } else {
-        isEnabled = false
-        onBackPressedDispatcher.onBackPressed()
+      when (currentScreen) {
+        Screen.SIGN_IN -> {
+          if (binding.xWebView.canGoBack()) {
+            binding.xWebView.goBack()
+          } else {
+            binding.xWebView.stopLoading()
+            captureJob?.cancel()
+            captureInFlight = false
+            didCapture = false
+            showScreen(Screen.HOME)
+          }
+        }
+        Screen.FEED -> {
+          if (!isBusy()) {
+            stopFeedPlayback(null)
+            showScreen(Screen.HOME)
+          }
+        }
+        Screen.HOME -> {
+          isEnabled = false
+          onBackPressedDispatcher.onBackPressed()
+        }
       }
     }
   }
 
+  // ── Session bootstrap ──────────────────────────────────────────────
+
   private fun maybeLoadStoredSession() {
     val storedSession = safeLoadStoredSession() ?: run {
       hasStoredSession = false
-      updateActionButtons()
       return
     }
 
     hasStoredSession = storedSession.isNotBlank()
-    if (!hasStoredSession) {
-      updateActionButtons()
-      return
-    }
-
-    fetchFollowingTimeline(initialCookieString = storedSession, append = false)
   }
+
+  // ── Login flow ─────────────────────────────────────────────────────
 
   private fun startLoginFlow(clearExistingSession: Boolean) {
     captureJob?.cancel()
@@ -280,16 +341,18 @@ class MainActivity : AppCompatActivity() {
         clearXWebViewCookies()
       }
 
-      renderLoginState()
+      showScreen(Screen.SIGN_IN)
+      hideSignInStatus()
       binding.xWebView.stopLoading()
       if (clearExistingSession) {
         binding.xWebView.clearHistory()
         binding.xWebView.clearCache(true)
       }
       binding.xWebView.loadUrl(X_LOGIN_URL)
-      updateActionButtons()
     }
   }
+
+  // ── Cookie capture ─────────────────────────────────────────────────
 
   private fun attemptCapture(strict: Boolean) {
     if (captureInFlight || didCapture) {
@@ -299,10 +362,9 @@ class MainActivity : AppCompatActivity() {
     captureJob?.cancel()
     captureJob = lifecycleScope.launch {
       captureInFlight = true
-      updateActionButtons()
 
       if (strict) {
-        renderCapturingState()
+        showSignInStatus(getString(R.string.status_capturing_body))
       }
 
       try {
@@ -314,19 +376,21 @@ class MainActivity : AppCompatActivity() {
 
         hasStoredSession = true
         didCapture = true
+        showScreen(Screen.FEED)
         fetchFollowingTimeline(initialCookieString = session.cookieString, append = false)
       } catch (error: XAuthException) {
         if (!strict && error.code == XAuthErrorCodes.COOKIE_MISSING_REQUIRED) {
           return@launch
         }
 
-        renderError(error.message ?: getString(R.string.generic_auth_error), preserveFeed = false)
+        showSignInError(error.message ?: getString(R.string.generic_auth_error))
       } finally {
         captureInFlight = false
-        updateActionButtons()
       }
     }
   }
+
+  // ── Timeline fetching ──────────────────────────────────────────────
 
   private fun fetchFollowingTimeline(
     initialCookieString: String? = null,
@@ -340,15 +404,13 @@ class MainActivity : AppCompatActivity() {
     } else {
       fetchJob?.cancel()
       isFetchingInitial = true
-      if (timelineItems.isEmpty()) {
-        renderFetchingState(showExistingFeed = false)
-      } else {
-        renderFetchingState(showExistingFeed = true)
+      if (currentScreen == Screen.FEED) {
+        binding.loadingOverlay.isVisible = timelineItems.isEmpty()
+        binding.loadingTextView.text = getString(R.string.loading_feed)
       }
     }
 
-    updateActionButtons()
-    updateFeedSummary()
+    updateFeedControls()
 
     val request = XFollowingTimelineRequest(
       cursor = if (append) nextCursor else null,
@@ -364,12 +426,12 @@ class MainActivity : AppCompatActivity() {
       } catch (error: CancellationException) {
         throw error
       } catch (_: Exception) {
-        renderError(getString(R.string.generic_timeline_error), preserveFeed = timelineItems.isNotEmpty())
+        showFeedError(getString(R.string.generic_timeline_error))
       } finally {
         isFetchingInitial = false
         isFetchingMore = false
-        updateActionButtons()
-        updateFeedSummary()
+        binding.loadingOverlay.isVisible = false
+        updateFeedControls()
       }
     }
   }
@@ -384,18 +446,18 @@ class MainActivity : AppCompatActivity() {
 
     feedAdapter.submitList(timelineItems)
 
-    if (timelineItems.isEmpty()) {
-      binding.speechStatusTextView.text = getString(R.string.feed_speech_status_no_items)
-      updateSpeechControls()
-      renderEmptyFeedState()
-      return
+    if (currentScreen != Screen.FEED) {
+      showScreen(Screen.FEED)
     }
 
-    if (!isSpeakingFeed) {
+    if (timelineItems.isEmpty()) {
+      binding.speechStatusTextView.text = getString(R.string.feed_speech_status_no_items)
+      binding.feedSummaryTextView.text = getString(R.string.empty_feed_body)
+    } else if (!isSpeakingFeed) {
       binding.speechStatusTextView.text = getString(R.string.feed_speech_status_idle)
     }
 
-    renderFeedState()
+    updateFeedControls()
   }
 
   private fun handleTimelineError(error: XTimelineException) {
@@ -409,162 +471,25 @@ class MainActivity : AppCompatActivity() {
       didCapture = false
     }
 
-    renderError(
-      error.message ?: getString(R.string.generic_timeline_error),
-      preserveFeed = timelineItems.isNotEmpty(),
-    )
+    showFeedError(error.message ?: getString(R.string.generic_timeline_error))
   }
 
-  private fun renderConnectPrompt() {
-    renderStatus(
-      title = getString(R.string.status_connect_title),
-      body = getString(R.string.status_connect_body),
-      titleColor = R.color.textPrimary,
-      bodyColor = R.color.textSecondary,
-    )
-    renderEmptyState(
-      title = getString(R.string.empty_title),
-      body = getString(R.string.empty_body),
-    )
-    binding.xWebView.isVisible = false
-    binding.feedContainer.isVisible = false
-    binding.loadingOverlay.isVisible = false
-    updateActionButtons()
-  }
+  // ── Feed controls ──────────────────────────────────────────────────
 
-  private fun renderLoginState() {
-    renderStatus(
-      title = getString(R.string.status_login_title),
-      body = getString(R.string.status_login_body),
-      titleColor = R.color.textPrimary,
-      bodyColor = R.color.textSecondary,
-    )
-    binding.emptyStateView.isVisible = false
-    binding.feedContainer.isVisible = false
-    binding.xWebView.isVisible = true
-    binding.loadingOverlay.isVisible = false
-    binding.loadingTextView.text = getString(R.string.loading_capture)
-    updateSpeechControls()
-  }
+  private fun updateFeedControls() {
+    val busy = isBusy()
 
-  private fun renderCapturingState() {
-    renderStatus(
-      title = getString(R.string.status_capturing_title),
-      body = getString(R.string.status_capturing_body),
-      titleColor = R.color.textPrimary,
-      bodyColor = R.color.textSecondary,
-    )
-    binding.emptyStateView.isVisible = false
-    binding.feedContainer.isVisible = false
-    binding.xWebView.isVisible = true
-    binding.loadingTextView.text = getString(R.string.loading_capture)
-    binding.loadingOverlay.isVisible = true
-    updateSpeechControls()
-  }
+    binding.refreshButton.isEnabled = !busy && hasStoredSession
 
-  private fun renderFetchingState(showExistingFeed: Boolean) {
-    renderStatus(
-      title = getString(R.string.status_fetching_title),
-      body = getString(R.string.status_fetching_body),
-      titleColor = R.color.textPrimary,
-      bodyColor = R.color.textSecondary,
-    )
+    binding.loadMoreButton.isVisible = !nextCursor.isNullOrBlank() && !isFetchingMore
+    binding.loadMoreButton.isEnabled = !busy && !nextCursor.isNullOrBlank()
+    binding.loadMoreProgressRow.isVisible = isFetchingMore
 
-    binding.xWebView.isVisible = false
-    binding.emptyStateView.isVisible = false
-    binding.feedContainer.isVisible = showExistingFeed
-    binding.loadingTextView.text = getString(R.string.loading_feed)
-    binding.loadingOverlay.isVisible = true
-    binding.feedSummaryTextView.text = if (showExistingFeed) {
-      getString(R.string.feed_summary_fetching)
-    } else {
-      ""
-    }
-    updateSpeechControls()
-  }
-
-  private fun renderFeedState() {
-    renderStatus(
-      title = getString(R.string.status_ready_title),
-      body = getString(R.string.status_ready_body, timelineItems.size),
-      titleColor = R.color.success,
-      bodyColor = R.color.textSecondary,
-    )
-
-    binding.emptyStateView.isVisible = false
-    binding.xWebView.isVisible = false
-    binding.feedContainer.isVisible = true
-    binding.loadingOverlay.isVisible = false
     updateFeedSummary()
-    updateActionButtons()
-  }
-
-  private fun renderEmptyFeedState() {
-    renderStatus(
-      title = getString(R.string.status_ready_title),
-      body = getString(R.string.empty_feed_body),
-      titleColor = R.color.textPrimary,
-      bodyColor = R.color.textSecondary,
-    )
-    renderEmptyState(
-      title = getString(R.string.empty_feed_title),
-      body = getString(R.string.empty_feed_body),
-    )
-    binding.xWebView.isVisible = false
-    binding.feedContainer.isVisible = false
-    binding.loadingOverlay.isVisible = false
-    updateActionButtons()
-  }
-
-  private fun renderError(message: String, preserveFeed: Boolean) {
-    stopFeedPlayback(null)
-    renderStatus(
-      title = getString(R.string.status_error_title),
-      body = message,
-      titleColor = R.color.error,
-      bodyColor = R.color.error,
-    )
-    binding.loadingOverlay.isVisible = false
-    binding.xWebView.isVisible = false
-    binding.feedContainer.isVisible = preserveFeed && timelineItems.isNotEmpty()
-
-    if (binding.feedContainer.isVisible) {
-      binding.emptyStateView.isVisible = false
-      updateFeedSummary()
-      binding.speechStatusTextView.text = buildFeedSpeechErrorMessage(message)
-    } else {
-      renderEmptyState(
-        title = getString(R.string.status_error_title),
-        body = message,
-      )
-    }
-
-    updateActionButtons()
-  }
-
-  private fun renderStatus(
-    title: String,
-    body: String,
-    titleColor: Int,
-    bodyColor: Int,
-  ) {
-    binding.statusTitleTextView.text = title
-    binding.statusTitleTextView.setTextColor(ContextCompat.getColor(this, titleColor))
-    binding.statusBodyTextView.text = body
-    binding.statusBodyTextView.setTextColor(ContextCompat.getColor(this, bodyColor))
-  }
-
-  private fun renderEmptyState(title: String, body: String) {
-    binding.emptyTitleTextView.text = title
-    binding.emptyBodyTextView.text = body
-    binding.emptyStateView.isVisible = true
+    updateSpeechControls()
   }
 
   private fun updateFeedSummary() {
-    if (!binding.feedContainer.isVisible) {
-      return
-    }
-
     binding.feedSummaryTextView.text = when {
       timelineItems.isEmpty() -> getString(R.string.feed_summary_fetching)
       isFetchingMore -> getString(R.string.feed_summary_loading_more, timelineItems.size)
@@ -573,43 +498,37 @@ class MainActivity : AppCompatActivity() {
     }
   }
 
-  private fun updateActionButtons() {
-    val busy = isBusy()
-    binding.connectButton.isEnabled = !busy
-    binding.connectButton.text = getString(
-      if (hasStoredSession || timelineItems.isNotEmpty()) R.string.reconnect_x else R.string.connect_x,
-    )
+  private fun updateSpeechControls() {
+    val canPlay = currentScreen == Screen.FEED &&
+      timelineItems.isNotEmpty() &&
+      !isBusy() &&
+      !isSpeakingFeed
 
-    binding.refreshButton.isVisible = hasStoredSession && !binding.xWebView.isVisible
-    binding.refreshButton.isEnabled = !busy && hasStoredSession
-
-    binding.loadMoreButton.isVisible = binding.feedContainer.isVisible && !nextCursor.isNullOrBlank() && !isFetchingMore
-    binding.loadMoreButton.isEnabled = !busy && !nextCursor.isNullOrBlank()
-    binding.loadMoreProgressRow.isVisible = binding.feedContainer.isVisible && isFetchingMore
-
-    updateSpeechControls()
+    binding.playFeedButton.isEnabled = canPlay
+    binding.stopFeedButton.isEnabled = isSpeakingFeed
   }
 
-  private fun safeLoadStoredSession(): String? {
-    return try {
-      authService.loadStoredSession()
-    } catch (error: XAuthException) {
-      renderError(error.message ?: getString(R.string.generic_auth_error), preserveFeed = false)
-      null
+  // ── Error display ──────────────────────────────────────────────────
+
+  private fun showSignInError(message: String) {
+    binding.signInStatusBar.isVisible = true
+    binding.signInProgressBar.isVisible = false
+    binding.signInStatusText.text = message
+    binding.signInStatusText.setTextColor(getColor(R.color.error))
+  }
+
+  private fun showFeedError(message: String) {
+    stopFeedPlayback(null)
+    if (currentScreen == Screen.FEED) {
+      Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+    } else {
+      showScreen(Screen.FEED)
+      Toast.makeText(this, message, Toast.LENGTH_LONG).show()
     }
+    binding.speechStatusTextView.text = buildFeedSpeechErrorMessage(message)
   }
 
-  private fun safeClearStoredSession() {
-    try {
-      authService.clearStoredSession()
-    } catch (error: XAuthException) {
-      renderError(error.message ?: getString(R.string.generic_auth_error), preserveFeed = timelineItems.isNotEmpty())
-    }
-  }
-
-  private fun isBusy(): Boolean {
-    return captureInFlight || isFetchingInitial || isFetchingMore
-  }
+  // ── TTS playback ──────────────────────────────────────────────────
 
   private fun startFeedPlayback() {
     if (!timelineSpeechPlayer.hasSpeakableItems(timelineItems)) {
@@ -679,14 +598,27 @@ class MainActivity : AppCompatActivity() {
     }
   }
 
-  private fun updateSpeechControls() {
-    val canPlay = binding.feedContainer.isVisible &&
-      timelineItems.isNotEmpty() &&
-      !isBusy() &&
-      !isSpeakingFeed
+  // ── Helpers ────────────────────────────────────────────────────────
 
-    binding.playFeedButton.isEnabled = canPlay
-    binding.stopFeedButton.isEnabled = isSpeakingFeed
+  private fun safeLoadStoredSession(): String? {
+    return try {
+      authService.loadStoredSession()
+    } catch (error: XAuthException) {
+      Toast.makeText(this, error.message ?: getString(R.string.generic_auth_error), Toast.LENGTH_LONG).show()
+      null
+    }
+  }
+
+  private fun safeClearStoredSession() {
+    try {
+      authService.clearStoredSession()
+    } catch (error: XAuthException) {
+      Toast.makeText(this, error.message ?: getString(R.string.generic_auth_error), Toast.LENGTH_LONG).show()
+    }
+  }
+
+  private fun isBusy(): Boolean {
+    return captureInFlight || isFetchingInitial || isFetchingMore
   }
 
   private fun buildFeedSpeechErrorMessage(message: String?): String {

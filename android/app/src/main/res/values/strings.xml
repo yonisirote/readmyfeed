@@ -56,4 +56,14 @@
   <string name="feed_count_reposts">%1$s reposts</string>
   <string name="feed_count_likes">%1$s likes</string>
   <string name="feed_count_views">%1$s views</string>
+  <string name="home_title">Choose your feed</string>
+  <string name="home_subtitle">Select a platform to get started</string>
+  <string name="platform_x">X (Twitter)</string>
+  <string name="platform_telegram">Telegram</string>
+  <string name="platform_whatsapp">WhatsApp</string>
+  <string name="platform_facebook">Facebook</string>
+  <string name="coming_soon">Coming soon</string>
+  <string name="back_to_home">Back</string>
+  <string name="sign_in_to_x">Sign in to X</string>
+  <string name="sign_in_subtitle">Log in with your X credentials to access your following timeline</string>
 </resources>

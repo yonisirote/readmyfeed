@@ -1,21 +1,43 @@
 <resources>
-  <color name="colorPrimary">#123B4A</color>
-  <color name="colorPrimaryDark">#0B2630</color>
-  <color name="buttonPrimary">#123B4A</color>
-  <color name="buttonPrimaryPressed">#0E2F3B</color>
-  <color name="buttonSecondary">#E5DACB</color>
-  <color name="buttonSecondaryPressed">#D8C8B6</color>
-  <color name="windowBackground">#F3EEE4</color>
-  <color name="cardBackground">#FFFCF7</color>
-  <color name="cardBackgroundStrong">#FFF7EA</color>
-  <color name="surfaceMuted">#EFE4D6</color>
-  <color name="surfaceOutline">#D7C8B5</color>
-  <color name="iconBackground">#F3EEE4</color>
-  <color name="loadingOverlay">#E6FFFCF7</color>
-  <color name="success">#1D6B45</color>
-  <color name="error">#9B2F2C</color>
-  <color name="textPrimary">#172126</color>
-  <color name="textSecondary">#5C686E</color>
-  <color name="textMuted">#79858A</color>
+  <!-- Brand -->
+  <color name="colorPrimary">#4FC3F7</color>
+  <color name="colorPrimaryDark">#0F1923</color>
+  <color name="accent">#4FC3F7</color>
+
+  <!-- Backgrounds -->
+  <color name="windowBackground">#0F1923</color>
+  <color name="cardBackground">#1A2733</color>
+  <color name="cardBackgroundStrong">#1A2733</color>
+  <color name="surfaceMuted">#141E2B</color>
+  <color name="surfaceOutline">#2A3A4A</color>
+  <color name="iconBackground">#264FC3F7</color>
+
+  <!-- Buttons -->
+  <color name="buttonPrimary">#4FC3F7</color>
+  <color name="buttonPrimaryPressed">#39A8D8</color>
+  <color name="buttonSecondary">#1A2733</color>
+  <color name="buttonSecondaryPressed">#243545</color>
+
+  <!-- Overlays -->
+  <color name="loadingOverlay">#E60F1923</color>
+
+  <!-- Text -->
+  <color name="textPrimary">#F0F4F8</color>
+  <color name="textSecondary">#8899A6</color>
+  <color name="textMuted">#5C6D7E</color>
+  <color name="textOnAccent">#0F1923</color>
+
+  <!-- Status -->
+  <color name="success">#4CAF50</color>
+  <color name="error">#EF5350</color>
+
   <color name="white">#FFFFFF</color>
+
+  <!-- Home cards -->
+  <color name="homeCardEnabled">#1A2733</color>
+  <color name="homeCardDisabled">#151D27</color>
+  <color name="homeCardStroke">#2A3A4A</color>
+  <color name="homeCardStrokeActive">#4FC3F7</color>
+  <color name="comingSoonBadge">#2A3A4A</color>
+  <color name="comingSoonText">#5C6D7E</color>
 </resources>

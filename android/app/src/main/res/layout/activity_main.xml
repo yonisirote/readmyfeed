@@ -1,233 +1,511 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/windowBackground"
-    android:orientation="vertical"
-    android:paddingStart="20dp"
-    android:paddingTop="24dp"
-    android:paddingEnd="20dp"
-    android:paddingBottom="20dp">
+    android:background="@drawable/bg_gradient">
 
-  <TextView
-      android:id="@+id/mainTitleTextView"
-      android:layout_width="wrap_content"
-      android:layout_height="wrap_content"
-      android:text="@string/main_title"
-      android:textColor="@color/textPrimary"
-      android:textSize="32sp"
-      android:textStyle="bold" />
-
-  <TextView
-      android:id="@+id/mainSubtitleTextView"
-      android:layout_width="match_parent"
-      android:layout_height="wrap_content"
-      android:layout_marginTop="8dp"
-      android:lineSpacingExtra="3dp"
-      android:text="@string/main_subtitle"
-      android:textColor="@color/textSecondary"
-      android:textSize="16sp" />
-
+  <!-- ════════════════════════════════════════════════ -->
+  <!-- SCREEN 1 : Home – Choose your feed              -->
+  <!-- ════════════════════════════════════════════════ -->
   <LinearLayout
-      android:id="@+id/statusPanel"
+      android:id="@+id/homeScreen"
       android:layout_width="match_parent"
-      android:layout_height="wrap_content"
-      android:layout_marginTop="20dp"
-      android:background="@drawable/panel_surface"
-      android:orientation="vertical">
+      android:layout_height="match_parent"
+      android:gravity="center_horizontal"
+      android:orientation="vertical"
+      android:paddingStart="28dp"
+      android:paddingTop="80dp"
+      android:paddingEnd="28dp">
 
     <TextView
-        android:id="@+id/flowLabelTextView"
+        android:id="@+id/homeAppTitle"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="@string/x_flow_label"
-        android:textColor="@color/colorPrimary"
-        android:textSize="12sp"
+        android:text="@string/main_title"
+        android:textColor="@color/textPrimary"
+        android:textSize="36sp"
         android:textStyle="bold" />
 
     <TextView
-        android:id="@+id/statusTitleTextView"
-        android:layout_width="match_parent"
+        android:id="@+id/homeTitle"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
+        android:layout_marginTop="40dp"
+        android:text="@string/home_title"
         android:textColor="@color/textPrimary"
         android:textSize="22sp"
         android:textStyle="bold" />
 
     <TextView
-        android:id="@+id/statusBodyTextView"
-        android:layout_width="match_parent"
+        android:id="@+id/homeSubtitle"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
-        android:lineSpacingExtra="4dp"
+        android:text="@string/home_subtitle"
         android:textColor="@color/textSecondary"
         android:textSize="15sp" />
 
+    <!-- Feed source cards -->
     <LinearLayout
-        android:id="@+id/actionRow"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="18dp"
-        android:orientation="horizontal">
+        android:layout_marginTop="32dp"
+        android:orientation="vertical">
 
-      <Button
-          android:id="@+id/connectButton"
-          android:layout_width="0dp"
-          android:layout_height="48dp"
-          android:layout_weight="1"
-          android:background="@drawable/button_primary"
-          android:text="@string/connect_x"
-          android:textAllCaps="false"
-          android:textColor="@color/white"
-          android:textSize="15sp"
-          android:textStyle="bold" />
+      <!-- X (Twitter) — enabled -->
+      <LinearLayout
+          android:id="@+id/homeCardX"
+          android:layout_width="match_parent"
+          android:layout_height="wrap_content"
+          android:background="@drawable/feed_card_selector"
+          android:clickable="true"
+          android:focusable="true"
+          android:gravity="center_vertical"
+          android:orientation="horizontal"
+          android:padding="18dp">
 
-      <Button
-          android:id="@+id/refreshButton"
-          android:layout_width="0dp"
-          android:layout_height="48dp"
-          android:layout_marginStart="12dp"
-          android:layout_weight="1"
-          android:background="@drawable/button_secondary"
-          android:text="@string/refresh_feed"
-          android:textAllCaps="false"
-          android:textColor="@color/colorPrimary"
-          android:textSize="15sp"
-          android:textStyle="bold"
-          android:visibility="gone" />
+        <FrameLayout
+            android:layout_width="48dp"
+            android:layout_height="48dp">
+
+          <View
+              android:layout_width="match_parent"
+              android:layout_height="match_parent"
+              android:background="@drawable/home_card_icon_bg" />
+
+          <ImageView
+              android:layout_width="24dp"
+              android:layout_height="24dp"
+              android:layout_gravity="center"
+              android:contentDescription="@string/platform_x"
+              android:src="@drawable/ic_x_logo" />
+        </FrameLayout>
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:layout_weight="1"
+            android:text="@string/platform_x"
+            android:textColor="@color/textPrimary"
+            android:textSize="17sp"
+            android:textStyle="bold" />
+
+        <ImageView
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:contentDescription="@null"
+            android:rotation="180"
+            android:src="@drawable/ic_back_arrow" />
+      </LinearLayout>
+
+      <!-- Telegram — coming soon -->
+      <LinearLayout
+          android:id="@+id/homeCardTelegram"
+          android:layout_width="match_parent"
+          android:layout_height="wrap_content"
+          android:layout_marginTop="12dp"
+          android:alpha="0.5"
+          android:background="@drawable/feed_card_disabled"
+          android:gravity="center_vertical"
+          android:orientation="horizontal"
+          android:padding="18dp">
+
+        <FrameLayout
+            android:layout_width="48dp"
+            android:layout_height="48dp">
+
+          <View
+              android:layout_width="match_parent"
+              android:layout_height="match_parent"
+              android:background="@drawable/home_card_icon_bg_disabled" />
+
+          <ImageView
+              android:layout_width="24dp"
+              android:layout_height="24dp"
+              android:layout_gravity="center"
+              android:contentDescription="@string/platform_telegram"
+              android:src="@drawable/ic_telegram" />
+        </FrameLayout>
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:layout_weight="1"
+            android:text="@string/platform_telegram"
+            android:textColor="@color/textSecondary"
+            android:textSize="17sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/feed_card_disabled"
+            android:paddingStart="10dp"
+            android:paddingTop="4dp"
+            android:paddingEnd="10dp"
+            android:paddingBottom="4dp"
+            android:text="@string/coming_soon"
+            android:textColor="@color/comingSoonText"
+            android:textSize="11sp" />
+      </LinearLayout>
+
+      <!-- WhatsApp — coming soon -->
+      <LinearLayout
+          android:id="@+id/homeCardWhatsApp"
+          android:layout_width="match_parent"
+          android:layout_height="wrap_content"
+          android:layout_marginTop="12dp"
+          android:alpha="0.5"
+          android:background="@drawable/feed_card_disabled"
+          android:gravity="center_vertical"
+          android:orientation="horizontal"
+          android:padding="18dp">
+
+        <FrameLayout
+            android:layout_width="48dp"
+            android:layout_height="48dp">
+
+          <View
+              android:layout_width="match_parent"
+              android:layout_height="match_parent"
+              android:background="@drawable/home_card_icon_bg_disabled" />
+
+          <ImageView
+              android:layout_width="24dp"
+              android:layout_height="24dp"
+              android:layout_gravity="center"
+              android:contentDescription="@string/platform_whatsapp"
+              android:src="@drawable/ic_whatsapp" />
+        </FrameLayout>
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:layout_weight="1"
+            android:text="@string/platform_whatsapp"
+            android:textColor="@color/textSecondary"
+            android:textSize="17sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/feed_card_disabled"
+            android:paddingStart="10dp"
+            android:paddingTop="4dp"
+            android:paddingEnd="10dp"
+            android:paddingBottom="4dp"
+            android:text="@string/coming_soon"
+            android:textColor="@color/comingSoonText"
+            android:textSize="11sp" />
+      </LinearLayout>
+
+      <!-- Facebook — coming soon -->
+      <LinearLayout
+          android:id="@+id/homeCardFacebook"
+          android:layout_width="match_parent"
+          android:layout_height="wrap_content"
+          android:layout_marginTop="12dp"
+          android:alpha="0.5"
+          android:background="@drawable/feed_card_disabled"
+          android:gravity="center_vertical"
+          android:orientation="horizontal"
+          android:padding="18dp">
+
+        <FrameLayout
+            android:layout_width="48dp"
+            android:layout_height="48dp">
+
+          <View
+              android:layout_width="match_parent"
+              android:layout_height="match_parent"
+              android:background="@drawable/home_card_icon_bg_disabled" />
+
+          <ImageView
+              android:layout_width="24dp"
+              android:layout_height="24dp"
+              android:layout_gravity="center"
+              android:contentDescription="@string/platform_facebook"
+              android:src="@drawable/ic_facebook" />
+        </FrameLayout>
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:layout_weight="1"
+            android:text="@string/platform_facebook"
+            android:textColor="@color/textSecondary"
+            android:textSize="17sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/feed_card_disabled"
+            android:paddingStart="10dp"
+            android:paddingTop="4dp"
+            android:paddingEnd="10dp"
+            android:paddingBottom="4dp"
+            android:text="@string/coming_soon"
+            android:textColor="@color/comingSoonText"
+            android:textSize="11sp" />
+      </LinearLayout>
     </LinearLayout>
   </LinearLayout>
 
-  <FrameLayout
-      android:id="@+id/contentContainer"
+  <!-- ════════════════════════════════════════════════ -->
+  <!-- SCREEN 2 : X Sign-in (WebView login)            -->
+  <!-- ════════════════════════════════════════════════ -->
+  <LinearLayout
+      android:id="@+id/xSignInScreen"
       android:layout_width="match_parent"
-      android:layout_height="0dp"
-      android:layout_marginTop="18dp"
-      android:layout_weight="1">
+      android:layout_height="match_parent"
+      android:orientation="vertical"
+      android:visibility="gone">
 
+    <!-- Top bar -->
     <LinearLayout
-        android:id="@+id/emptyStateView"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:background="@drawable/panel_surface"
-        android:gravity="center"
-        android:orientation="vertical">
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="16dp"
+        android:paddingTop="16dp"
+        android:paddingEnd="16dp"
+        android:paddingBottom="12dp">
+
+      <ImageView
+          android:id="@+id/backFromSignIn"
+          android:layout_width="40dp"
+          android:layout_height="40dp"
+          android:background="?attr/selectableItemBackgroundBorderless"
+          android:clickable="true"
+          android:contentDescription="@string/back_to_home"
+          android:focusable="true"
+          android:padding="8dp"
+          android:src="@drawable/ic_back_arrow" />
 
       <TextView
-          android:id="@+id/emptyTitleTextView"
-          android:layout_width="wrap_content"
+          android:layout_width="0dp"
           android:layout_height="wrap_content"
+          android:layout_marginStart="8dp"
+          android:layout_weight="1"
+          android:text="@string/sign_in_to_x"
           android:textColor="@color/textPrimary"
           android:textSize="20sp"
           android:textStyle="bold" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/signInSubtitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingStart="24dp"
+        android:paddingEnd="24dp"
+        android:paddingBottom="16dp"
+        android:text="@string/sign_in_subtitle"
+        android:textColor="@color/textSecondary"
+        android:textSize="14sp" />
+
+    <!-- Status bar -->
+    <LinearLayout
+        android:id="@+id/signInStatusBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/surfaceMuted"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="24dp"
+        android:paddingTop="10dp"
+        android:paddingEnd="24dp"
+        android:paddingBottom="10dp"
+        android:visibility="gone">
+
+      <ProgressBar
+          android:id="@+id/signInProgressBar"
+          style="?android:attr/progressBarStyleSmall"
+          android:layout_width="16dp"
+          android:layout_height="16dp" />
 
       <TextView
-          android:id="@+id/emptyBodyTextView"
-          android:layout_width="match_parent"
+          android:id="@+id/signInStatusText"
+          android:layout_width="0dp"
           android:layout_height="wrap_content"
-          android:layout_marginTop="10dp"
-          android:gravity="center"
-          android:lineSpacingExtra="4dp"
+          android:layout_marginStart="10dp"
+          android:layout_weight="1"
           android:textColor="@color/textSecondary"
-          android:textSize="15sp" />
+          android:textSize="13sp" />
     </LinearLayout>
 
     <WebView
         android:id="@+id/xWebView"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:background="@color/cardBackground"
-        android:visibility="gone" />
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:background="@color/cardBackground" />
+  </LinearLayout>
 
+  <!-- ════════════════════════════════════════════════ -->
+  <!-- SCREEN 3 : Feed (tweets list)                    -->
+  <!-- ════════════════════════════════════════════════ -->
+  <LinearLayout
+      android:id="@+id/feedScreen"
+      android:layout_width="match_parent"
+      android:layout_height="match_parent"
+      android:orientation="vertical"
+      android:visibility="gone">
+
+    <!-- Top bar -->
     <LinearLayout
-        android:id="@+id/feedContainer"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:background="@drawable/panel_surface"
-        android:orientation="vertical"
-        android:visibility="gone">
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="16dp"
+        android:paddingTop="16dp"
+        android:paddingEnd="16dp"
+        android:paddingBottom="8dp">
 
-      <TextView
-          android:id="@+id/feedSectionTitleTextView"
-          android:layout_width="match_parent"
+      <ImageView
+          android:id="@+id/backFromFeed"
+          android:layout_width="40dp"
+          android:layout_height="40dp"
+          android:background="?attr/selectableItemBackgroundBorderless"
+          android:clickable="true"
+          android:contentDescription="@string/back_to_home"
+          android:focusable="true"
+          android:padding="8dp"
+          android:src="@drawable/ic_back_arrow" />
+
+      <LinearLayout
+          android:layout_width="0dp"
           android:layout_height="wrap_content"
-          android:text="@string/feed_section_title"
-          android:textColor="@color/textPrimary"
-          android:textSize="20sp"
+          android:layout_marginStart="8dp"
+          android:layout_weight="1"
+          android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/feedTitleTextView"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/feed_section_title"
+            android:textColor="@color/textPrimary"
+            android:textSize="20sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/feedSummaryTextView"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:textColor="@color/textSecondary"
+            android:textSize="13sp" />
+      </LinearLayout>
+
+      <Button
+          android:id="@+id/refreshButton"
+          android:layout_width="wrap_content"
+          android:layout_height="36dp"
+          android:background="@drawable/button_outline"
+          android:minWidth="0dp"
+          android:paddingStart="16dp"
+          android:paddingEnd="16dp"
+          android:text="@string/refresh_feed"
+          android:textAllCaps="false"
+          android:textColor="@color/accent"
+          android:textSize="13sp"
+          android:textStyle="bold" />
+    </LinearLayout>
+
+    <!-- Speech controls -->
+    <LinearLayout
+        android:id="@+id/speechControlsRow"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="24dp"
+        android:paddingTop="8dp"
+        android:paddingEnd="24dp"
+        android:paddingBottom="8dp">
+
+      <Button
+          android:id="@+id/playFeedButton"
+          android:layout_width="wrap_content"
+          android:layout_height="40dp"
+          android:background="@drawable/button_accent"
+          android:minWidth="0dp"
+          android:paddingStart="20dp"
+          android:paddingEnd="20dp"
+          android:text="@string/play_feed"
+          android:textAllCaps="false"
+          android:textColor="@color/textOnAccent"
+          android:textSize="14sp"
+          android:textStyle="bold" />
+
+      <Button
+          android:id="@+id/stopFeedButton"
+          android:layout_width="wrap_content"
+          android:layout_height="40dp"
+          android:layout_marginStart="10dp"
+          android:background="@drawable/button_outline"
+          android:enabled="false"
+          android:minWidth="0dp"
+          android:paddingStart="20dp"
+          android:paddingEnd="20dp"
+          android:text="@string/stop_feed_audio"
+          android:textAllCaps="false"
+          android:textColor="@color/accent"
+          android:textSize="14sp"
           android:textStyle="bold" />
 
       <TextView
-          android:id="@+id/feedSummaryTextView"
-          android:layout_width="match_parent"
-          android:layout_height="wrap_content"
-          android:layout_marginTop="6dp"
-          android:lineSpacingExtra="3dp"
-          android:textColor="@color/textSecondary"
-          android:textSize="14sp" />
-
-      <LinearLayout
-          android:id="@+id/speechControlsRow"
-          android:layout_width="match_parent"
-          android:layout_height="wrap_content"
-          android:layout_marginTop="16dp"
-          android:orientation="horizontal">
-
-        <Button
-            android:id="@+id/playFeedButton"
-            android:layout_width="0dp"
-            android:layout_height="48dp"
-            android:layout_weight="1"
-            android:background="@drawable/button_primary"
-            android:text="@string/play_feed"
-            android:textAllCaps="false"
-            android:textColor="@color/white"
-            android:textSize="15sp"
-            android:textStyle="bold" />
-
-        <Button
-            android:id="@+id/stopFeedButton"
-            android:layout_width="0dp"
-            android:layout_height="48dp"
-            android:layout_marginStart="12dp"
-            android:layout_weight="1"
-            android:background="@drawable/button_secondary"
-            android:enabled="false"
-            android:text="@string/stop_feed_audio"
-            android:textAllCaps="false"
-            android:textColor="@color/colorPrimary"
-            android:textSize="15sp"
-            android:textStyle="bold" />
-      </LinearLayout>
-
-      <TextView
           android:id="@+id/speechStatusTextView"
-          android:layout_width="match_parent"
+          android:layout_width="0dp"
           android:layout_height="wrap_content"
-          android:layout_marginTop="10dp"
-          android:lineSpacingExtra="3dp"
-          android:text="@string/feed_speech_status_idle"
-          android:textColor="@color/textSecondary"
-          android:textSize="14sp" />
-
-      <androidx.recyclerview.widget.RecyclerView
-          android:id="@+id/feedRecyclerView"
-          android:layout_width="match_parent"
-          android:layout_height="0dp"
+          android:layout_marginStart="12dp"
           android:layout_weight="1"
-          android:clipToPadding="false"
-          android:overScrollMode="never"
-          android:paddingTop="16dp"
-          android:paddingBottom="16dp" />
+          android:ellipsize="end"
+          android:maxLines="1"
+          android:text="@string/feed_speech_status_idle"
+          android:textColor="@color/textMuted"
+          android:textSize="12sp" />
+    </LinearLayout>
+
+    <!-- Feed list -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/feedRecyclerView"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:clipToPadding="false"
+        android:overScrollMode="never"
+        android:paddingStart="16dp"
+        android:paddingTop="8dp"
+        android:paddingEnd="16dp"
+        android:paddingBottom="16dp" />
+
+    <!-- Load more row -->
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
 
       <Button
           android:id="@+id/loadMoreButton"
           android:layout_width="match_parent"
           android:layout_height="48dp"
-          android:background="@drawable/button_secondary"
+          android:layout_marginStart="24dp"
+          android:layout_marginEnd="24dp"
+          android:layout_marginBottom="12dp"
+          android:background="@drawable/button_outline"
           android:text="@string/load_more"
           android:textAllCaps="false"
-          android:textColor="@color/colorPrimary"
-          android:textSize="15sp"
+          android:textColor="@color/accent"
+          android:textSize="14sp"
           android:textStyle="bold"
           android:visibility="gone" />
 
@@ -238,11 +516,13 @@
           android:gravity="center"
           android:orientation="horizontal"
           android:paddingTop="12dp"
+          android:paddingBottom="12dp"
           android:visibility="gone">
 
         <ProgressBar
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content" />
+            style="?android:attr/progressBarStyleSmall"
+            android:layout_width="20dp"
+            android:layout_height="20dp" />
 
         <TextView
             android:id="@+id/loadMoreProgressTextView"
@@ -251,33 +531,36 @@
             android:layout_marginStart="10dp"
             android:text="@string/loading_more"
             android:textColor="@color/textSecondary"
-            android:textSize="14sp" />
+            android:textSize="13sp" />
       </LinearLayout>
-    </LinearLayout>
+    </FrameLayout>
+  </LinearLayout>
 
-    <LinearLayout
-        android:id="@+id/loadingOverlay"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:background="@color/loadingOverlay"
-        android:clickable="true"
-        android:focusable="true"
-        android:gravity="center"
-        android:orientation="vertical"
-        android:visibility="gone">
+  <!-- ════════════════════════════════════════════════ -->
+  <!-- Loading overlay (shared across screens)         -->
+  <!-- ════════════════════════════════════════════════ -->
+  <LinearLayout
+      android:id="@+id/loadingOverlay"
+      android:layout_width="match_parent"
+      android:layout_height="match_parent"
+      android:background="@color/loadingOverlay"
+      android:clickable="true"
+      android:focusable="true"
+      android:gravity="center"
+      android:orientation="vertical"
+      android:visibility="gone">
 
-      <ProgressBar
-          android:layout_width="wrap_content"
-          android:layout_height="wrap_content" />
+    <ProgressBar
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content" />
 
-      <TextView
-          android:id="@+id/loadingTextView"
-          android:layout_width="wrap_content"
-          android:layout_height="wrap_content"
-          android:layout_marginTop="10dp"
-          android:textColor="@color/textPrimary"
-          android:textSize="15sp"
-          android:textStyle="bold" />
-    </LinearLayout>
-  </FrameLayout>
-</LinearLayout>
+    <TextView
+        android:id="@+id/loadingTextView"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:textColor="@color/textPrimary"
+        android:textSize="15sp"
+        android:textStyle="bold" />
+  </LinearLayout>
+</FrameLayout>
