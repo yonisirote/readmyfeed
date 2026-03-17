@@ -40,11 +40,13 @@ android/
       MainActivity.kt      # Native X flow and feed playback screen
       x/auth/              # Session, cookie, WebView capture, and auth helpers
       x/timeline/          # Request building, parser, and pagination
-      tts/                 # Native TTS models, engine, service, and helpers
-      tts/x/               # X-to-speech adapters and playback helpers
+      tts/                 # Shared TTS models, engine, service, and playback helpers
+      x/speech/            # X-specific speech adapters and playback helpers
     src/main/res/          # Layouts, strings, drawables, theme resources
     src/test/kotlin/       # JVM unit tests
 ```
+
+When validating changes, run Gradle tasks sequentially in the same `android/` worktree. Avoid starting overlapping `./gradlew` commands at the same time, especially after Kotlin file or package moves.
 
 ## Notes
 

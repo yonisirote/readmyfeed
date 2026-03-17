@@ -19,7 +19,6 @@ import com.yonisirote.readmyfeed.databinding.ActivityMainBinding
 import com.yonisirote.readmyfeed.tts.AndroidTtsEngine
 import com.yonisirote.readmyfeed.tts.TtsException
 import com.yonisirote.readmyfeed.tts.TtsService
-import com.yonisirote.readmyfeed.tts.x.XTimelineSpeechPlayer
 import com.yonisirote.readmyfeed.x.auth.AndroidWebViewCookieReader
 import com.yonisirote.readmyfeed.x.auth.PreferencesXSessionStore
 import com.yonisirote.readmyfeed.x.auth.XAuthErrorCodes
@@ -28,9 +27,9 @@ import com.yonisirote.readmyfeed.x.auth.XAuthService
 import com.yonisirote.readmyfeed.x.auth.XLoginCaptureCoordinator
 import com.yonisirote.readmyfeed.x.auth.X_LOGIN_URL
 import com.yonisirote.readmyfeed.x.auth.clearXWebViewCookies
+import com.yonisirote.readmyfeed.x.speech.XTimelineSpeechPlayer
 import com.yonisirote.readmyfeed.x.timeline.XFollowingTimelineBatch
 import com.yonisirote.readmyfeed.x.timeline.XFollowingTimelineRequest
-import com.yonisirote.readmyfeed.x.timeline.XTimelineErrorCodes
 import com.yonisirote.readmyfeed.x.timeline.XTimelineException
 import com.yonisirote.readmyfeed.x.timeline.XTimelineItem
 import com.yonisirote.readmyfeed.x.timeline.XTimelineService
@@ -59,6 +58,7 @@ class MainActivity : AppCompatActivity() {
   private var isFetchingInitial = false
   private var isFetchingMore = false
   private var isSpeakingFeed = false
+  private var lastFeedLoadErrorMessage: String? = null
   private var captureJob: Job? = null
   private var fetchJob: Job? = null
   private var speakJob: Job? = null
@@ -153,6 +153,7 @@ class MainActivity : AppCompatActivity() {
     binding.signInStatusBar.isVisible = true
     binding.signInProgressBar.isVisible = true
     binding.signInStatusText.text = text
+    binding.signInStatusText.setTextColor(getColor(R.color.textSecondary))
   }
 
   private fun hideSignInStatus() {
@@ -209,7 +210,7 @@ class MainActivity : AppCompatActivity() {
     binding.feedRecyclerView.addOnScrollListener(object : androidx.recyclerview.widget.RecyclerView.OnScrollListener() {
       override fun onScrolled(recyclerView: androidx.recyclerview.widget.RecyclerView, dx: Int, dy: Int) {
         super.onScrolled(recyclerView, dx, dy)
-        if (dy <= 0) {
+        if (dy <= 0 || !canLoadMoreTimeline(hasStoredSession, nextCursor, isFetchingInitial, isFetchingMore)) {
           return
         }
 
@@ -336,6 +337,7 @@ class MainActivity : AppCompatActivity() {
         hasStoredSession = false
         timelineItems = emptyList()
         nextCursor = null
+        lastFeedLoadErrorMessage = null
         feedAdapter.submitList(emptyList())
         binding.speechStatusTextView.text = getString(R.string.feed_speech_status_idle)
         clearXWebViewCookies()
@@ -397,13 +399,14 @@ class MainActivity : AppCompatActivity() {
     append: Boolean,
   ) {
     if (append) {
-      if (nextCursor.isNullOrBlank() || isFetchingMore || isFetchingInitial) {
+      if (!canLoadMoreTimeline(hasStoredSession, nextCursor, isFetchingInitial, isFetchingMore)) {
         return
       }
       isFetchingMore = true
     } else {
       fetchJob?.cancel()
       isFetchingInitial = true
+      lastFeedLoadErrorMessage = null
       if (currentScreen == Screen.FEED) {
         binding.loadingOverlay.isVisible = timelineItems.isEmpty()
         binding.loadingTextView.text = getString(R.string.loading_feed)
@@ -426,7 +429,7 @@ class MainActivity : AppCompatActivity() {
       } catch (error: CancellationException) {
         throw error
       } catch (_: Exception) {
-        showFeedError(getString(R.string.generic_timeline_error))
+        handleUnexpectedTimelineError()
       } finally {
         isFetchingInitial = false
         isFetchingMore = false
@@ -438,6 +441,7 @@ class MainActivity : AppCompatActivity() {
 
   private fun applyTimelineBatch(batch: XFollowingTimelineBatch, append: Boolean) {
     nextCursor = batch.nextCursor
+    lastFeedLoadErrorMessage = null
     timelineItems = if (append) {
       mergeTimelineItems(timelineItems, batch.items)
     } else {
@@ -452,26 +456,29 @@ class MainActivity : AppCompatActivity() {
 
     if (timelineItems.isEmpty()) {
       binding.speechStatusTextView.text = getString(R.string.feed_speech_status_no_items)
-      binding.feedSummaryTextView.text = getString(R.string.empty_feed_body)
     } else if (!isSpeakingFeed) {
       binding.speechStatusTextView.text = getString(R.string.feed_speech_status_idle)
     }
-
-    updateFeedControls()
   }
 
   private fun handleTimelineError(error: XTimelineException) {
-    val shouldClearStoredSession = error.code == XTimelineErrorCodes.SESSION_MISSING ||
-      error.code == XTimelineErrorCodes.COOKIE_INVALID ||
-      (error.code == XTimelineErrorCodes.REQUEST_FAILED && (error.context["status"] as? Int) in listOf(401, 403))
+    val message = error.message ?: getString(R.string.generic_timeline_error)
+    lastFeedLoadErrorMessage = message
 
-    if (shouldClearStoredSession) {
+    if (shouldClearTimelineSession(error)) {
       safeClearStoredSession()
       hasStoredSession = false
       didCapture = false
+      nextCursor = null
     }
 
-    showFeedError(error.message ?: getString(R.string.generic_timeline_error))
+    showFeedError(message)
+  }
+
+  private fun handleUnexpectedTimelineError() {
+    val message = getString(R.string.generic_timeline_error)
+    lastFeedLoadErrorMessage = message
+    showFeedError(message)
   }
 
   // ── Feed controls ──────────────────────────────────────────────────
@@ -481,8 +488,16 @@ class MainActivity : AppCompatActivity() {
 
     binding.refreshButton.isEnabled = !busy && hasStoredSession
 
-    binding.loadMoreButton.isVisible = !nextCursor.isNullOrBlank() && !isFetchingMore
-    binding.loadMoreButton.isEnabled = !busy && !nextCursor.isNullOrBlank()
+    binding.loadMoreButton.isVisible = shouldShowLoadMoreButton(
+      hasStoredSession = hasStoredSession,
+      nextCursor = nextCursor,
+      isFetchingMore = isFetchingMore,
+    )
+    binding.loadMoreButton.isEnabled = shouldEnableLoadMoreButton(
+      hasStoredSession = hasStoredSession,
+      nextCursor = nextCursor,
+      isBusy = busy,
+    )
     binding.loadMoreProgressRow.isVisible = isFetchingMore
 
     updateFeedSummary()
@@ -490,11 +505,23 @@ class MainActivity : AppCompatActivity() {
   }
 
   private fun updateFeedSummary() {
-    binding.feedSummaryTextView.text = when {
-      timelineItems.isEmpty() -> getString(R.string.feed_summary_fetching)
-      isFetchingMore -> getString(R.string.feed_summary_loading_more, timelineItems.size)
-      !nextCursor.isNullOrBlank() -> getString(R.string.feed_summary_ready_more, timelineItems.size)
-      else -> getString(R.string.feed_summary_ready_end, timelineItems.size)
+    val summary = resolveFeedSummaryModel(
+      itemCount = timelineItems.size,
+      hasStoredSession = hasStoredSession,
+      nextCursor = nextCursor,
+      isFetchingInitial = isFetchingInitial,
+      isFetchingMore = isFetchingMore,
+      lastLoadErrorMessage = lastFeedLoadErrorMessage,
+    )
+
+    binding.feedSummaryTextView.text = when (summary.state) {
+      FeedSummaryState.FETCHING -> getString(R.string.feed_summary_fetching)
+      FeedSummaryState.EMPTY -> getString(R.string.empty_feed_body)
+      FeedSummaryState.ERROR -> summary.errorMessage ?: getString(R.string.generic_timeline_error)
+      FeedSummaryState.RECONNECT -> getString(R.string.feed_summary_reconnect, timelineItems.size)
+      FeedSummaryState.LOADING_MORE -> getString(R.string.feed_summary_loading_more, timelineItems.size)
+      FeedSummaryState.READY_MORE -> getString(R.string.feed_summary_ready_more, timelineItems.size)
+      FeedSummaryState.READY_END -> getString(R.string.feed_summary_ready_end, timelineItems.size)
     }
   }
 

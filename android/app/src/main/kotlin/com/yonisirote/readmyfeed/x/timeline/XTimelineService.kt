@@ -47,7 +47,9 @@ class XTimelineService(
 
     return withContext(Dispatchers.IO) {
       response.use { httpResponse ->
-        val body = httpResponse.body?.string().orEmpty()
+        val body = readTimelineResponseBody {
+          httpResponse.body?.string().orEmpty()
+        }
         if (!httpResponse.isSuccessful) {
           throw XTimelineException(
             message = "Failed to fetch following timeline (status ${httpResponse.code}).",
@@ -83,5 +85,18 @@ private fun summarizeBody(body: String): String {
     trimmed
   } else {
     trimmed.take(240) + "..."
+  }
+}
+
+internal fun readTimelineResponseBody(readBody: () -> String): String {
+  return try {
+    readBody()
+  } catch (error: IOException) {
+    throw XTimelineException(
+      message = "Failed to read following timeline response.",
+      code = XTimelineErrorCodes.REQUEST_FAILED,
+      context = mapOf("cause" to (error.message ?: error::class.java.simpleName)),
+      cause = error,
+    )
   }
 }

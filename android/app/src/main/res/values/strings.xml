@@ -29,6 +29,7 @@
   <string name="feed_summary_ready_more">%1$d posts loaded so far. More posts are available.</string>
   <string name="feed_summary_ready_end">%1$d posts loaded so far. This is the end of the current timeline window.</string>
   <string name="feed_summary_loading_more">%1$d posts loaded so far. Fetching more posts from X.</string>
+  <string name="feed_summary_reconnect">%1$d posts are still loaded. Reconnect X to refresh or load more.</string>
   <string name="feed_speech_status_idle">Ready to read the loaded timeline aloud.</string>
   <string name="feed_speech_status_loading">Preparing tweet playback...</string>
   <string name="feed_speech_status_playing">Reading tweet %1$d of %2$d...</string>

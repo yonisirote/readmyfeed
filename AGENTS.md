@@ -23,8 +23,8 @@
 - `android/app/src/main/kotlin/com/yonisirote/readmyfeed/MainActivity.kt`: current screen and flow coordinator.
 - `android/app/src/main/kotlin/com/yonisirote/readmyfeed/x/auth/`: X auth, session, cookie, and login-capture helpers.
 - `android/app/src/main/kotlin/com/yonisirote/readmyfeed/x/timeline/`: X request, parser, and pagination logic.
-- `android/app/src/main/kotlin/com/yonisirote/readmyfeed/tts/`: TTS models, engine, service, and helpers.
-- `android/app/src/main/kotlin/com/yonisirote/readmyfeed/tts/x/`: X-to-speech adapters and playback helpers.
+- `android/app/src/main/kotlin/com/yonisirote/readmyfeed/tts/`: shared TTS models, engine, service, and playback helpers.
+- `android/app/src/main/kotlin/com/yonisirote/readmyfeed/x/speech/`: X-specific speech adapters and playback helpers.
 - `android/app/src/main/res/`: layouts, strings, colors, drawables, and themes.
 - `android/app/src/test/kotlin/`: JVM unit tests.
 
@@ -40,6 +40,7 @@
 - When using shell tools, prefer setting `workdir` to `android/` instead of chaining `cd`.
 - Use the Gradle wrapper: `./gradlew`.
 - Prefer the smallest command that validates your change.
+- Do not run overlapping `./gradlew` commands in parallel against the same `android/` worktree; chain them sequentially, especially after Kotlin file or package moves.
 - After meaningful Android code or resource changes, finish with `assembleDebug`.
 
 ## Build Commands
@@ -60,7 +61,7 @@
 - Run one class: `./gradlew testDebugUnitTest --tests 'com.yonisirote.readmyfeed.x.timeline.XTimelineParserTest'`
 - Run one method: `./gradlew testDebugUnitTest --tests 'com.yonisirote.readmyfeed.x.timeline.XTimelineParserTest.parsesTimelineTweetsAndNextCursor'`
 - Run a package slice: `./gradlew testDebugUnitTest --tests 'com.yonisirote.readmyfeed.tts.*'`
-- Run multiple filters: `./gradlew testDebugUnitTest --tests 'com.yonisirote.readmyfeed.x.auth.*' --tests 'com.yonisirote.readmyfeed.tts.x.*'`
+- Run multiple filters: `./gradlew testDebugUnitTest --tests 'com.yonisirote.readmyfeed.x.auth.*' --tests 'com.yonisirote.readmyfeed.x.speech.*'`
 - Re-run cached tests: `./gradlew testDebugUnitTest --rerun`
 - Stop on first failure: `./gradlew testDebugUnitTest --fail-fast`
 - Task help: `./gradlew help --task testDebugUnitTest`
@@ -72,7 +73,7 @@
 - `com.yonisirote.readmyfeed.x.auth.XAuthUtilsTest`
 - `com.yonisirote.readmyfeed.x.auth.XLoginCaptureCoordinatorTest`
 - `com.yonisirote.readmyfeed.tts.TtsServiceTest`
-- `com.yonisirote.readmyfeed.tts.x.XTimelineSpeechPlayerTest`
+- `com.yonisirote.readmyfeed.x.speech.XTimelineSpeechPlayerTest`
 
 ## Expected Verification Flow
 
@@ -108,7 +109,7 @@
 - UI classes should coordinate views, lifecycle, and user actions; move parsing, network, auth, and speech logic into focused classes.
 - Keep X auth and session concerns in `x/auth`.
 - Keep X request, parsing, and pagination concerns in `x/timeline`.
-- Keep speech logic isolated in `tts` and `tts/x`.
+- Keep shared speech logic in `tts` and platform-specific speech adapters in `x/speech`.
 - Prefer composition and mapping adapters over inheritance across services.
 - Do not pass raw JSON outside the timeline parsing boundary.
 - Treat X payloads as unstable and untrusted; parse defensively and cap traversal work.

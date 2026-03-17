@@ -1,4 +1,4 @@
-package com.yonisirote.readmyfeed.tts.x
+package com.yonisirote.readmyfeed.x.speech
 
 import com.yonisirote.readmyfeed.x.timeline.XTimelineItem
 import org.junit.Assert.assertEquals

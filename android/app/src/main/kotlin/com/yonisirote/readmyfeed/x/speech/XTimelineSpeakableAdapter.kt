@@ -1,7 +1,15 @@
-package com.yonisirote.readmyfeed.tts.x
+package com.yonisirote.readmyfeed.x.speech
 
+import com.yonisirote.readmyfeed.tts.SpeakableEntry
 import com.yonisirote.readmyfeed.tts.SpeakableItem
 import com.yonisirote.readmyfeed.x.timeline.XTimelineItem
+
+fun XTimelineItem.toSpeakableEntry(): SpeakableEntry<XTimelineItem> {
+  return SpeakableEntry(
+    source = this,
+    speakableItem = toSpeakableItem(),
+  )
+}
 
 fun XTimelineItem.toSpeakableItem(): SpeakableItem {
   val prefix = if (isRetweet) {
