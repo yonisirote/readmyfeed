@@ -6,18 +6,18 @@ This note is for the next agent who continues Telegram work in this repo.
 
 - The app shell is now provider-oriented.
 - X is fully implemented.
-- Telegram now has a real provider controller, native auth/connect flow, and a native main chat list, but message playback is still pending.
-- `android/app/src/main/kotlin/com/yonisirote/readmyfeed/MainActivity.kt` is a thin shell.
+- Telegram now has a real provider controller, native auth/connect flow, native main chat list, selected-chat unread loading, and on-screen message playback.
+- `android/app/src/main/kotlin/com/yonisirote/readmyfeed/shell/MainActivity.kt` is a thin shell.
 - Provider integration goes through:
-  - `android/app/src/main/kotlin/com/yonisirote/readmyfeed/ProviderFeatureController.kt`
-  - `android/app/src/main/kotlin/com/yonisirote/readmyfeed/ProviderFeatureRegistry.kt`
-  - `android/app/src/main/kotlin/com/yonisirote/readmyfeed/ProviderFeatureFactory.kt`
+  - `android/app/src/main/kotlin/com/yonisirote/readmyfeed/providers/ProviderFeatureController.kt`
+  - `android/app/src/main/kotlin/com/yonisirote/readmyfeed/providers/ProviderFeatureRegistry.kt`
+  - `android/app/src/main/kotlin/com/yonisirote/readmyfeed/providers/ProviderFeatureFactory.kt`
 - X is the reference implementation:
-  - `android/app/src/main/kotlin/com/yonisirote/readmyfeed/x/ui/XFeatureController.kt`
+  - `android/app/src/main/kotlin/com/yonisirote/readmyfeed/providers/x/ui/XFeatureController.kt`
 - Telegram provider integration currently centers on:
-  - `android/app/src/main/kotlin/com/yonisirote/readmyfeed/telegram/ui/TelegramFeatureController.kt`
-  - `android/app/src/main/kotlin/com/yonisirote/readmyfeed/telegram/client/TelegramClientManager.kt`
-  - `android/app/src/main/kotlin/com/yonisirote/readmyfeed/telegram/auth/TelegramAuthStateMapper.kt`
+  - `android/app/src/main/kotlin/com/yonisirote/readmyfeed/providers/telegram/ui/TelegramFeatureController.kt`
+  - `android/app/src/main/kotlin/com/yonisirote/readmyfeed/providers/telegram/client/TelegramClientManager.kt`
+  - `android/app/src/main/kotlin/com/yonisirote/readmyfeed/providers/telegram/auth/TelegramAuthStateMapper.kt`
 - TDLib packaging now lives in:
   - `android/tdlib/`
 - Shared TTS is reusable for Telegram:
@@ -27,27 +27,27 @@ This note is for the next agent who continues Telegram work in this repo.
 ## Telegram status right now
 
 - Telegram is partially implemented.
-- `FeedProvider.TELEGRAM` is now enabled in `android/app/src/main/kotlin/com/yonisirote/readmyfeed/FeedProvider.kt`.
+- `FeedProvider.TELEGRAM` is now enabled in `android/app/src/main/kotlin/com/yonisirote/readmyfeed/providers/FeedProvider.kt`.
 - The Telegram home card is clickable and routes into a native Telegram connect screen in `android/app/src/main/res/layout/activity_main.xml`.
-- Telegram foundation packages now exist under `android/app/src/main/kotlin/com/yonisirote/readmyfeed/telegram/`.
+- Telegram foundation packages now exist under `android/app/src/main/kotlin/com/yonisirote/readmyfeed/providers/telegram/`.
 - A local TDLib module is now wired into Gradle at `android/tdlib/`.
 - `android/settings.gradle` includes `:tdlib`, and `android/app/build.gradle` depends on it.
 - `telegramApiId` and `telegramApiHash` are read from `android/local.properties` and exposed via `BuildConfig.TELEGRAM_API_ID` / `BuildConfig.TELEGRAM_API_HASH`.
 - Telegram credential validation is deferred until Telegram client code actually initializes, so unrelated X/debug builds still work on fresh clones.
-- A long-lived TDLib wrapper now exists at `android/app/src/main/kotlin/com/yonisirote/readmyfeed/telegram/client/TelegramClientManager.kt`.
-- Auth-state mapping now exists at `android/app/src/main/kotlin/com/yonisirote/readmyfeed/telegram/auth/TelegramAuthStateMapper.kt`.
-- A real provider controller now exists at `android/app/src/main/kotlin/com/yonisirote/readmyfeed/telegram/ui/TelegramFeatureController.kt`.
+- A long-lived TDLib wrapper now exists at `android/app/src/main/kotlin/com/yonisirote/readmyfeed/providers/telegram/client/TelegramClientManager.kt`.
+- Auth-state mapping now exists at `android/app/src/main/kotlin/com/yonisirote/readmyfeed/providers/telegram/auth/TelegramAuthStateMapper.kt`.
+- A real provider controller now exists at `android/app/src/main/kotlin/com/yonisirote/readmyfeed/providers/telegram/ui/TelegramFeatureController.kt`.
 - Telegram connect/auth UI now routes phone, email, code, password, QR, QR-to-phone fallback, and ready states through the provider shell.
 - The Telegram connected destination is now a real native chat list screen in `android/app/src/main/res/layout/activity_main.xml` (`telegramChatListScreen`).
 - `TelegramFeatureController` automatically navigates from connect -> chat list when TDLib reaches `AuthorizationStateReady`.
 - `TelegramClientManager` now loads chats with `loadChats` and applies main-list updates for new chats, ordering, titles, last messages, unread counts, and marked-unread state.
 - Chat previews are surfaced as sorted `TelegramChatPreview` models and rendered with a native `RecyclerView` adapter.
 - While QR login is active, the connect screen now shows a dedicated `Use phone number instead` action that returns the auth flow to phone login without forcing a full restart.
-- Chat rows are still read-only for now; selected-chat message loading and playback have not been added yet.
+- Chat rows navigate into a selected chat screen that loads unread messages and supports on-screen TTS playback.
 - App-owned Telegram foundation models already exist for future work in:
-  - `android/app/src/main/kotlin/com/yonisirote/readmyfeed/telegram/chats/TelegramChatModels.kt`
-  - `android/app/src/main/kotlin/com/yonisirote/readmyfeed/telegram/messages/TelegramMessageModels.kt`
-  - `android/app/src/main/kotlin/com/yonisirote/readmyfeed/telegram/speech/TelegramMessageSpeakableAdapter.kt`
+  - `android/app/src/main/kotlin/com/yonisirote/readmyfeed/providers/telegram/chats/TelegramChatModels.kt`
+  - `android/app/src/main/kotlin/com/yonisirote/readmyfeed/providers/telegram/messages/TelegramMessageModels.kt`
+  - `android/app/src/main/kotlin/com/yonisirote/readmyfeed/providers/telegram/speech/TelegramMessageSpeakableAdapter.kt`
 
 ## Credentials / source control status
 
@@ -193,16 +193,16 @@ Why:
 
 - There is already an uncommitted multi-provider shell refactor in the worktree.
 - The key new files from that refactor include:
-  - `android/app/src/main/kotlin/com/yonisirote/readmyfeed/AppScreen.kt`
-  - `android/app/src/main/kotlin/com/yonisirote/readmyfeed/FeedProvider.kt`
-  - `android/app/src/main/kotlin/com/yonisirote/readmyfeed/ProviderFeatureController.kt`
-  - `android/app/src/main/kotlin/com/yonisirote/readmyfeed/ProviderFeatureRegistry.kt`
-  - `android/app/src/main/kotlin/com/yonisirote/readmyfeed/x/ui/XFeatureController.kt`
+  - `android/app/src/main/kotlin/com/yonisirote/readmyfeed/shell/AppScreen.kt`
+  - `android/app/src/main/kotlin/com/yonisirote/readmyfeed/providers/FeedProvider.kt`
+  - `android/app/src/main/kotlin/com/yonisirote/readmyfeed/providers/ProviderFeatureController.kt`
+  - `android/app/src/main/kotlin/com/yonisirote/readmyfeed/providers/ProviderFeatureRegistry.kt`
+  - `android/app/src/main/kotlin/com/yonisirote/readmyfeed/providers/x/ui/XFeatureController.kt`
 - There is now also a committed-in-worktree TDLib packaging module at `android/tdlib/`.
 - The Telegram provider controller and connect-screen work now depend on:
-  - `android/app/src/main/kotlin/com/yonisirote/readmyfeed/telegram/ui/TelegramFeatureController.kt`
-  - `android/app/src/main/kotlin/com/yonisirote/readmyfeed/telegram/ui/TelegramConnectScreenState.kt`
-  - `android/app/src/main/kotlin/com/yonisirote/readmyfeed/telegram/client/TelegramClientManager.kt`
+  - `android/app/src/main/kotlin/com/yonisirote/readmyfeed/providers/telegram/ui/TelegramFeatureController.kt`
+  - `android/app/src/main/kotlin/com/yonisirote/readmyfeed/providers/telegram/ui/TelegramConnectScreenState.kt`
+  - `android/app/src/main/kotlin/com/yonisirote/readmyfeed/providers/telegram/client/TelegramClientManager.kt`
 - Do not revert those changes unless the user explicitly asks.
 
 ## Checks already performed before pausing

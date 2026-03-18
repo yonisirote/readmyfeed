@@ -31,9 +31,9 @@ On a fresh clone, or after deleting local TDLib binaries, run `./tdlib/regenerat
 Useful targeted test commands:
 
 ```bash
-./gradlew testDebugUnitTest --tests 'com.yonisirote.readmyfeed.x.timeline.XTimelineParserTest'
-./gradlew testDebugUnitTest --tests 'com.yonisirote.readmyfeed.x.timeline.XTimelineParserTest.parsesTimelineTweetsAndNextCursor'
-./gradlew testDebugUnitTest --tests 'com.yonisirote.readmyfeed.telegram.client.TelegramClientManagerTest'
+./gradlew testDebugUnitTest --tests 'com.yonisirote.readmyfeed.providers.x.timeline.XTimelineParserTest'
+./gradlew testDebugUnitTest --tests 'com.yonisirote.readmyfeed.providers.x.timeline.XTimelineParserTest.parsesTimelineTweetsAndNextCursor'
+./gradlew testDebugUnitTest --tests 'com.yonisirote.readmyfeed.providers.telegram.client.TelegramClientManagerTest'
 ./gradlew testDebugUnitTest --tests 'com.yonisirote.readmyfeed.tts.*'
 ```
 
@@ -44,11 +44,9 @@ android/
   tdlib/                    # Local TDLib module and JNI regeneration script
   app/
     src/main/kotlin/com/yonisirote/readmyfeed/
-      MainActivity.kt      # Native X flow and feed playback screen
-      x/auth/              # Session, cookie, WebView capture, and auth helpers
-      x/timeline/          # Request building, parser, and pagination
+      shell/               # Activity and app-shell screen navigation
+      providers/           # Provider registry plus X/Telegram features
       tts/                 # Shared TTS models, engine, service, and playback helpers
-      x/speech/            # X-specific speech adapters and playback helpers
     src/main/res/          # Layouts, strings, drawables, theme resources
     src/test/kotlin/       # JVM unit tests
 ```

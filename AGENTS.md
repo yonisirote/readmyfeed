@@ -20,12 +20,12 @@
 
 ## Important Paths
 
-- `android/app/src/main/kotlin/com/yonisirote/readmyfeed/MainActivity.kt`: current screen and flow coordinator.
-- `android/app/src/main/kotlin/com/yonisirote/readmyfeed/x/auth/`: X auth, session, cookie, and login-capture helpers.
-- `android/app/src/main/kotlin/com/yonisirote/readmyfeed/x/timeline/`: X request, parser, and pagination logic.
+- `android/app/src/main/kotlin/com/yonisirote/readmyfeed/shell/MainActivity.kt`: current screen and flow coordinator.
+- `android/app/src/main/kotlin/com/yonisirote/readmyfeed/providers/x/auth/`: X auth, session, cookie, and login-capture helpers.
+- `android/app/src/main/kotlin/com/yonisirote/readmyfeed/providers/x/timeline/`: X request, parser, and pagination logic.
 - `android/tdlib/`: local TDLib Android library module with generated Java sources and a local JNI regeneration script.
 - `android/app/src/main/kotlin/com/yonisirote/readmyfeed/tts/`: shared TTS models, engine, service, and playback helpers.
-- `android/app/src/main/kotlin/com/yonisirote/readmyfeed/x/speech/`: X-specific speech adapters and playback helpers.
+- `android/app/src/main/kotlin/com/yonisirote/readmyfeed/providers/x/speech/`: X-specific speech adapters and playback helpers.
 - `android/app/src/main/res/`: layouts, strings, colors, drawables, and themes.
 - `android/app/src/test/kotlin/`: JVM unit tests.
 
@@ -61,22 +61,22 @@
 ## Test Commands
 
 - Run all JVM unit tests: `./gradlew testDebugUnitTest`
-- Run one class: `./gradlew testDebugUnitTest --tests 'com.yonisirote.readmyfeed.x.timeline.XTimelineParserTest'`
-- Run one method: `./gradlew testDebugUnitTest --tests 'com.yonisirote.readmyfeed.x.timeline.XTimelineParserTest.parsesTimelineTweetsAndNextCursor'`
+- Run one class: `./gradlew testDebugUnitTest --tests 'com.yonisirote.readmyfeed.providers.x.timeline.XTimelineParserTest'`
+- Run one method: `./gradlew testDebugUnitTest --tests 'com.yonisirote.readmyfeed.providers.x.timeline.XTimelineParserTest.parsesTimelineTweetsAndNextCursor'`
 - Run a package slice: `./gradlew testDebugUnitTest --tests 'com.yonisirote.readmyfeed.tts.*'`
-- Run multiple filters: `./gradlew testDebugUnitTest --tests 'com.yonisirote.readmyfeed.x.auth.*' --tests 'com.yonisirote.readmyfeed.x.speech.*'`
+- Run multiple filters: `./gradlew testDebugUnitTest --tests 'com.yonisirote.readmyfeed.providers.x.auth.*' --tests 'com.yonisirote.readmyfeed.providers.x.speech.*'`
 - Re-run cached tests: `./gradlew testDebugUnitTest --rerun`
 - Stop on first failure: `./gradlew testDebugUnitTest --fail-fast`
 - Task help: `./gradlew help --task testDebugUnitTest`
 
 ## Useful Current Test Targets
 
-- `com.yonisirote.readmyfeed.x.timeline.XTimelineParserTest`
-- `com.yonisirote.readmyfeed.x.timeline.XTimelinePaginationTest`
-- `com.yonisirote.readmyfeed.x.auth.XAuthUtilsTest`
-- `com.yonisirote.readmyfeed.x.auth.XLoginCaptureCoordinatorTest`
+- `com.yonisirote.readmyfeed.providers.x.timeline.XTimelineParserTest`
+- `com.yonisirote.readmyfeed.providers.x.timeline.XTimelinePaginationTest`
+- `com.yonisirote.readmyfeed.providers.x.auth.XAuthUtilsTest`
+- `com.yonisirote.readmyfeed.providers.x.auth.XLoginCaptureCoordinatorTest`
 - `com.yonisirote.readmyfeed.tts.TtsServiceTest`
-- `com.yonisirote.readmyfeed.x.speech.XTimelineSpeechPlayerTest`
+- `com.yonisirote.readmyfeed.providers.x.speech.XTimelineSpeechPlayerTest`
 
 ## Expected Verification Flow
 
