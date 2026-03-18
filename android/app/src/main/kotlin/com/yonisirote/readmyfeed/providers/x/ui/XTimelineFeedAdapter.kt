@@ -7,7 +7,7 @@ import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.yonisirote.readmyfeed.R
-import com.yonisirote.readmyfeed.databinding.ItemTimelineEntryBinding
+import com.yonisirote.readmyfeed.databinding.ItemXTimelineEntryBinding
 import com.yonisirote.readmyfeed.providers.x.timeline.XTimelineItem
 import com.yonisirote.readmyfeed.providers.x.timeline.XTimelineMedia
 import com.yonisirote.readmyfeed.providers.x.timeline.XTimelineMediaType
@@ -20,7 +20,7 @@ import java.util.Locale
 class XTimelineFeedAdapter : ListAdapter<XTimelineItem, XTimelineFeedAdapter.TimelineViewHolder>(DiffCallback) {
   override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): TimelineViewHolder {
     val inflater = LayoutInflater.from(parent.context)
-    return TimelineViewHolder(ItemTimelineEntryBinding.inflate(inflater, parent, false))
+    return TimelineViewHolder(ItemXTimelineEntryBinding.inflate(inflater, parent, false))
   }
 
   override fun onBindViewHolder(holder: TimelineViewHolder, position: Int) {
@@ -28,7 +28,7 @@ class XTimelineFeedAdapter : ListAdapter<XTimelineItem, XTimelineFeedAdapter.Tim
   }
 
   class TimelineViewHolder(
-    private val binding: ItemTimelineEntryBinding,
+    private val binding: ItemXTimelineEntryBinding,
   ) : RecyclerView.ViewHolder(binding.root) {
     fun bind(item: XTimelineItem) {
       val context = binding.root.context

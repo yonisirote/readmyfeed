@@ -21,11 +21,14 @@
 ## Important Paths
 
 - `android/app/src/main/kotlin/com/yonisirote/readmyfeed/shell/MainActivity.kt`: current screen and flow coordinator.
+- `android/app/src/main/kotlin/com/yonisirote/readmyfeed/shell/`: shell navigation, screen models, and activity coordination.
+- `android/app/src/main/kotlin/com/yonisirote/readmyfeed/providers/`: provider registry plus X/Telegram feature implementations.
 - `android/app/src/main/kotlin/com/yonisirote/readmyfeed/providers/x/auth/`: X auth, session, cookie, and login-capture helpers.
 - `android/app/src/main/kotlin/com/yonisirote/readmyfeed/providers/x/timeline/`: X request, parser, and pagination logic.
 - `android/tdlib/`: local TDLib Android library module with generated Java sources and a local JNI regeneration script.
 - `android/app/src/main/kotlin/com/yonisirote/readmyfeed/tts/`: shared TTS models, engine, service, and playback helpers.
 - `android/app/src/main/kotlin/com/yonisirote/readmyfeed/providers/x/speech/`: X-specific speech adapters and playback helpers.
+- `android/app/src/main/res/layout/activity_main.xml`: current screen composition root for the app shell and provider screens.
 - `android/app/src/main/res/`: layouts, strings, colors, drawables, and themes.
 - `android/app/src/test/kotlin/`: JVM unit tests.
 
