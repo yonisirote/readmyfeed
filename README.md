@@ -11,23 +11,29 @@ The active code lives under `android/`. The old Expo/React Native codebase still
 - Native WebView login and cookie capture flow are implemented
 - Native X feed UI is implemented with `RecyclerView`
 - Screen-scoped TTS can read the loaded tweets aloud
-- Telegram migration and background playback are still pending
+- A local TDLib module lives under `android/tdlib/`; JNI libs are regenerated locally with `./tdlib/regenerate.sh`
+- Telegram auth, main chat list loading, selected chat unread message loading, and on-screen TTS playback now work through local TDLib
+- Background playback and read-state side effects are still pending
 
 ## Development Commands
 
 Run Gradle from `android/`:
 
 ```bash
+./tdlib/regenerate.sh
 ./gradlew assembleDebug
 ./gradlew testDebugUnitTest
 ./gradlew lintDebug
 ```
+
+On a fresh clone, or after deleting local TDLib binaries, run `./tdlib/regenerate.sh` once before the Gradle tasks above.
 
 Useful targeted test commands:
 
 ```bash
 ./gradlew testDebugUnitTest --tests 'com.yonisirote.readmyfeed.x.timeline.XTimelineParserTest'
 ./gradlew testDebugUnitTest --tests 'com.yonisirote.readmyfeed.x.timeline.XTimelineParserTest.parsesTimelineTweetsAndNextCursor'
+./gradlew testDebugUnitTest --tests 'com.yonisirote.readmyfeed.telegram.client.TelegramClientManagerTest'
 ./gradlew testDebugUnitTest --tests 'com.yonisirote.readmyfeed.tts.*'
 ```
 
@@ -35,6 +41,7 @@ Useful targeted test commands:
 
 ```text
 android/
+  tdlib/                    # Local TDLib module and JNI regeneration script
   app/
     src/main/kotlin/com/yonisirote/readmyfeed/
       MainActivity.kt      # Native X flow and feed playback screen
@@ -53,4 +60,5 @@ When validating changes, run Gradle tasks sequentially in the same `android/` wo
 - The current X login path is still cookie-based and depends on the embedded WebView flow.
 - Username/email + password is the expected path; Google or other SSO flows are not supported here.
 - TTS is intentionally screen-scoped right now. There is no foreground-service or background playback flow yet.
+- `android/tdlib/src/main/jniLibs/` is local build output from `./tdlib/regenerate.sh` and is intentionally ignored by git.
 - `AGENTS.md` contains repository-specific guidance for coding agents, including style rules and single-test command examples.

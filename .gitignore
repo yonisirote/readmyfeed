@@ -1,6 +1,9 @@
 # Local caches
 node_modules/
 .expo/
+.opencode/
+.ruff_cache/
+.husky/_/
 dist/
 web-build/
 
@@ -17,6 +20,7 @@ android/**/.project
 android/**/.settings/
 android/build/
 android/app/build/
+android/**/build/
 android/local.properties
 *.iml
 *.hprof

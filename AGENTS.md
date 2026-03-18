@@ -23,6 +23,7 @@
 - `android/app/src/main/kotlin/com/yonisirote/readmyfeed/MainActivity.kt`: current screen and flow coordinator.
 - `android/app/src/main/kotlin/com/yonisirote/readmyfeed/x/auth/`: X auth, session, cookie, and login-capture helpers.
 - `android/app/src/main/kotlin/com/yonisirote/readmyfeed/x/timeline/`: X request, parser, and pagination logic.
+- `android/tdlib/`: local TDLib Android library module with generated Java sources and a local JNI regeneration script.
 - `android/app/src/main/kotlin/com/yonisirote/readmyfeed/tts/`: shared TTS models, engine, service, and playback helpers.
 - `android/app/src/main/kotlin/com/yonisirote/readmyfeed/x/speech/`: X-specific speech adapters and playback helpers.
 - `android/app/src/main/res/`: layouts, strings, colors, drawables, and themes.
@@ -39,12 +40,14 @@
 
 - When using shell tools, prefer setting `workdir` to `android/` instead of chaining `cd`.
 - Use the Gradle wrapper: `./gradlew`.
+- After a fresh clone, or when TDLib JNI libs are missing, run `./tdlib/regenerate.sh` from `android/` before Gradle tasks that package the app.
 - Prefer the smallest command that validates your change.
 - Do not run overlapping `./gradlew` commands in parallel against the same `android/` worktree; chain them sequentially, especially after Kotlin file or package moves.
 - After meaningful Android code or resource changes, finish with `assembleDebug`.
 
 ## Build Commands
 
+- Prepare TDLib JNI libs after a fresh clone: `./tdlib/regenerate.sh`
 - Build debug APK: `./gradlew assembleDebug`
 - Clean build outputs: `./gradlew clean`
 - Show available tasks: `./gradlew tasks`

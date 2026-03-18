@@ -1,0 +1,42 @@
+plugins {
+  id 'com.android.library'
+}
+
+def requiredTdlibAbis = ['armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64']
+
+android {
+  namespace 'org.drinkless.tdlib'
+  compileSdk 36
+  ndkVersion '27.1.12297006'
+
+  defaultConfig {
+    minSdk 26
+  }
+
+  compileOptions {
+    sourceCompatibility JavaVersion.VERSION_17
+    targetCompatibility JavaVersion.VERSION_17
+  }
+}
+
+dependencies {
+  api 'androidx.annotation:annotation:1.9.1'
+}
+
+tasks.register('verifyTdlibJniLibs') {
+  doLast {
+    def missingAbis = requiredTdlibAbis.findAll { abi ->
+      !file("src/main/jniLibs/${abi}/libtdjni.so").exists()
+    }
+
+    if (!missingAbis.isEmpty()) {
+      throw new GradleException(
+        "Missing TDLib JNI libraries for ${missingAbis.join(', ')}. Run ./tdlib/regenerate.sh from android/ to build them locally.",
+      )
+    }
+  }
+}
+
+tasks.named('preBuild').configure {
+  dependsOn(tasks.named('verifyTdlibJniLibs'))
+}

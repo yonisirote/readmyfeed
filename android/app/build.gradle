@@ -3,9 +3,24 @@ plugins {
   id 'org.jetbrains.kotlin.android'
 }
 
+def localProperties = new java.util.Properties()
+def localPropertiesFile = rootProject.file('local.properties')
+if (localPropertiesFile.exists()) {
+  localPropertiesFile.withInputStream { input ->
+    localProperties.load(input)
+  }
+}
+
+def telegramApiId = (localProperties.getProperty('telegramApiId') ?: '').trim()
+def telegramApiHash = (localProperties.getProperty('telegramApiHash') ?: '').trim()
+def asBuildConfigString = { String value ->
+  '"' + value.replace('\\', '\\\\').replace('"', '\\"') + '"'
+}
+
 android {
   namespace 'com.yonisirote.readmyfeed'
   compileSdk 36
+  ndkVersion '27.1.12297006'
 
   defaultConfig {
     applicationId 'com.yonisirote.readmyfeed'
@@ -13,6 +28,8 @@ android {
     targetSdk 34
     versionCode 1
     versionName '1.0.0'
+    buildConfigField 'String', 'TELEGRAM_API_ID', asBuildConfigString(telegramApiId)
+    buildConfigField 'String', 'TELEGRAM_API_HASH', asBuildConfigString(telegramApiHash)
   }
 
   buildTypes {
@@ -39,9 +56,15 @@ android {
     buildConfig true
     viewBinding true
   }
+
+  testOptions {
+    unitTests.includeAndroidResources = true
+  }
 }
 
 dependencies {
+  implementation project(':tdlib')
+
   implementation 'androidx.activity:activity-ktx:1.9.3'
   implementation 'androidx.core:core-ktx:1.15.0'
   implementation 'androidx.appcompat:appcompat:1.7.0'
@@ -53,4 +76,6 @@ dependencies {
   implementation 'org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3'
 
   testImplementation 'junit:junit:4.13.2'
+  testImplementation 'androidx.test:core:1.6.1'
+  testImplementation 'org.robolectric:robolectric:4.14.1'
 }

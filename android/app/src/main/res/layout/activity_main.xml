@@ -99,14 +99,15 @@
             android:src="@drawable/ic_back_arrow" />
       </LinearLayout>
 
-      <!-- Telegram — coming soon -->
+      <!-- Telegram -->
       <LinearLayout
           android:id="@+id/homeCardTelegram"
           android:layout_width="match_parent"
           android:layout_height="wrap_content"
           android:layout_marginTop="12dp"
-          android:alpha="0.5"
-          android:background="@drawable/feed_card_disabled"
+          android:background="@drawable/feed_card_selector"
+          android:clickable="true"
+          android:focusable="true"
           android:gravity="center_vertical"
           android:orientation="horizontal"
           android:padding="18dp">
@@ -118,7 +119,7 @@
           <View
               android:layout_width="match_parent"
               android:layout_height="match_parent"
-              android:background="@drawable/home_card_icon_bg_disabled" />
+              android:background="@drawable/home_card_icon_bg" />
 
           <ImageView
               android:layout_width="24dp"
@@ -134,21 +135,16 @@
             android:layout_marginStart="16dp"
             android:layout_weight="1"
             android:text="@string/platform_telegram"
-            android:textColor="@color/textSecondary"
+            android:textColor="@color/textPrimary"
             android:textSize="17sp"
             android:textStyle="bold" />
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:background="@drawable/feed_card_disabled"
-            android:paddingStart="10dp"
-            android:paddingTop="4dp"
-            android:paddingEnd="10dp"
-            android:paddingBottom="4dp"
-            android:text="@string/coming_soon"
-            android:textColor="@color/comingSoonText"
-            android:textSize="11sp" />
+        <ImageView
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:contentDescription="@null"
+            android:rotation="180"
+            android:src="@drawable/ic_back_arrow" />
       </LinearLayout>
 
       <!-- WhatsApp — coming soon -->
@@ -532,6 +528,656 @@
             android:text="@string/loading_more"
             android:textColor="@color/textSecondary"
             android:textSize="13sp" />
+      </LinearLayout>
+    </FrameLayout>
+  </LinearLayout>
+
+  <!-- ════════════════════════════════════════════════ -->
+  <!-- SCREEN 4 : Telegram connect/auth               -->
+  <!-- ════════════════════════════════════════════════ -->
+  <ScrollView
+      android:id="@+id/telegramConnectScreen"
+      android:layout_width="match_parent"
+      android:layout_height="match_parent"
+      android:fillViewport="true"
+      android:visibility="gone">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingStart="20dp"
+        android:paddingTop="16dp"
+        android:paddingEnd="20dp"
+        android:paddingBottom="28dp">
+
+      <LinearLayout
+          android:layout_width="match_parent"
+          android:layout_height="wrap_content"
+          android:gravity="center_vertical"
+          android:orientation="horizontal"
+          android:paddingBottom="12dp">
+
+        <ImageView
+            android:id="@+id/backFromTelegramConnect"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:clickable="true"
+            android:contentDescription="@string/back_to_home"
+            android:focusable="true"
+            android:padding="8dp"
+            android:src="@drawable/ic_back_arrow" />
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_weight="1"
+            android:text="@string/telegram_connect_title"
+            android:textColor="@color/textPrimary"
+            android:textSize="20sp"
+            android:textStyle="bold" />
+      </LinearLayout>
+
+      <TextView
+          android:id="@+id/telegramConnectSubtitleTextView"
+          android:layout_width="match_parent"
+          android:layout_height="wrap_content"
+          android:text="@string/telegram_connect_subtitle"
+          android:textColor="@color/textSecondary"
+          android:textSize="14sp" />
+
+      <LinearLayout
+          android:id="@+id/telegramConnectStatusCard"
+          android:layout_width="match_parent"
+          android:layout_height="wrap_content"
+          android:layout_marginTop="18dp"
+          android:background="@drawable/feed_card_disabled"
+          android:orientation="vertical"
+          android:padding="18dp">
+
+        <TextView
+            android:id="@+id/telegramConnectStatusTitleTextView"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="@color/textPrimary"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/telegramConnectStatusBodyTextView"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:textColor="@color/textSecondary"
+            android:textSize="14sp" />
+
+        <TextView
+            android:id="@+id/telegramConnectErrorTextView"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:textColor="@color/error"
+            android:textSize="13sp"
+            android:visibility="gone" />
+      </LinearLayout>
+
+      <LinearLayout
+          android:id="@+id/telegramPhoneInputSection"
+          android:layout_width="match_parent"
+          android:layout_height="wrap_content"
+          android:layout_marginTop="18dp"
+          android:orientation="vertical"
+          android:visibility="gone">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/telegram_phone_label"
+            android:textColor="@color/textPrimary"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+
+        <EditText
+            android:id="@+id/telegramPhoneEditText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:background="@drawable/feed_card_disabled"
+            android:hint="@string/telegram_phone_hint"
+            android:inputType="phone"
+            android:padding="16dp"
+            android:textColor="@color/textPrimary"
+            android:textColorHint="@color/textMuted" />
+
+        <Button
+            android:id="@+id/telegramSubmitPhoneButton"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:layout_marginTop="12dp"
+            android:background="@drawable/button_accent"
+            android:text="@string/telegram_submit_phone"
+            android:textAllCaps="false"
+            android:textColor="@color/textOnAccent"
+            android:textStyle="bold" />
+      </LinearLayout>
+
+      <LinearLayout
+          android:id="@+id/telegramEmailInputSection"
+          android:layout_width="match_parent"
+          android:layout_height="wrap_content"
+          android:layout_marginTop="18dp"
+          android:orientation="vertical"
+          android:visibility="gone">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/telegram_email_label"
+            android:textColor="@color/textPrimary"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+
+        <EditText
+            android:id="@+id/telegramEmailEditText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:background="@drawable/feed_card_disabled"
+            android:hint="@string/telegram_email_hint"
+            android:inputType="textEmailAddress"
+            android:padding="16dp"
+            android:textColor="@color/textPrimary"
+            android:textColorHint="@color/textMuted" />
+
+        <Button
+            android:id="@+id/telegramSubmitEmailButton"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:layout_marginTop="12dp"
+            android:background="@drawable/button_accent"
+            android:text="@string/telegram_submit_email"
+            android:textAllCaps="false"
+            android:textColor="@color/textOnAccent"
+            android:textStyle="bold" />
+      </LinearLayout>
+
+      <LinearLayout
+          android:id="@+id/telegramCodeInputSection"
+          android:layout_width="match_parent"
+          android:layout_height="wrap_content"
+          android:layout_marginTop="18dp"
+          android:orientation="vertical"
+          android:visibility="gone">
+
+        <TextView
+            android:id="@+id/telegramCodeHintTextView"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="@color/textSecondary"
+            android:textSize="13sp" />
+
+        <EditText
+            android:id="@+id/telegramCodeEditText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:background="@drawable/feed_card_disabled"
+            android:hint="@string/telegram_code_hint"
+            android:inputType="text"
+            android:padding="16dp"
+            android:textColor="@color/textPrimary"
+            android:textColorHint="@color/textMuted" />
+
+        <Button
+            android:id="@+id/telegramSubmitCodeButton"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:layout_marginTop="12dp"
+            android:background="@drawable/button_accent"
+            android:text="@string/telegram_submit_code"
+            android:textAllCaps="false"
+            android:textColor="@color/textOnAccent"
+            android:textStyle="bold" />
+      </LinearLayout>
+
+      <LinearLayout
+          android:id="@+id/telegramPasswordInputSection"
+          android:layout_width="match_parent"
+          android:layout_height="wrap_content"
+          android:layout_marginTop="18dp"
+          android:orientation="vertical"
+          android:visibility="gone">
+
+        <TextView
+            android:id="@+id/telegramPasswordHintTextView"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="@color/textSecondary"
+            android:textSize="13sp" />
+
+        <EditText
+            android:id="@+id/telegramPasswordEditText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:background="@drawable/feed_card_disabled"
+            android:hint="@string/telegram_password_hint"
+            android:inputType="textPassword"
+            android:padding="16dp"
+            android:textColor="@color/textPrimary"
+            android:textColorHint="@color/textMuted" />
+
+        <Button
+            android:id="@+id/telegramSubmitPasswordButton"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:layout_marginTop="12dp"
+            android:background="@drawable/button_accent"
+            android:text="@string/telegram_submit_password"
+            android:textAllCaps="false"
+            android:textColor="@color/textOnAccent"
+            android:textStyle="bold" />
+      </LinearLayout>
+
+      <LinearLayout
+          android:id="@+id/telegramActionRow"
+          android:layout_width="match_parent"
+          android:layout_height="wrap_content"
+          android:layout_marginTop="18dp"
+          android:gravity="center_vertical"
+          android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/telegramQrButton"
+            android:layout_width="0dp"
+            android:layout_height="44dp"
+            android:layout_weight="1"
+            android:background="@drawable/button_outline"
+            android:text="@string/telegram_use_qr"
+            android:textAllCaps="false"
+            android:textColor="@color/accent"
+            android:textStyle="bold" />
+
+        <Button
+            android:id="@+id/telegramUsePhoneInsteadButton"
+            android:layout_width="0dp"
+            android:layout_height="44dp"
+            android:layout_marginStart="10dp"
+            android:layout_weight="1"
+            android:background="@drawable/button_outline"
+            android:text="@string/telegram_use_phone_instead"
+            android:textAllCaps="false"
+            android:textColor="@color/accent"
+            android:textStyle="bold"
+            android:visibility="gone" />
+
+        <Button
+            android:id="@+id/telegramRestartButton"
+            android:layout_width="0dp"
+            android:layout_height="44dp"
+            android:layout_marginStart="10dp"
+            android:layout_weight="1"
+            android:background="@drawable/button_outline"
+            android:text="@string/telegram_restart_auth"
+            android:textAllCaps="false"
+            android:textColor="@color/accent"
+            android:textStyle="bold" />
+      </LinearLayout>
+    </LinearLayout>
+  </ScrollView>
+
+  <LinearLayout
+      android:id="@+id/telegramChatListScreen"
+      android:layout_width="match_parent"
+      android:layout_height="match_parent"
+      android:orientation="vertical"
+      android:visibility="gone">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="16dp"
+        android:paddingTop="16dp"
+        android:paddingEnd="16dp"
+        android:paddingBottom="8dp">
+
+      <ImageView
+          android:id="@+id/backFromTelegramChatList"
+          android:layout_width="40dp"
+          android:layout_height="40dp"
+          android:background="?attr/selectableItemBackgroundBorderless"
+          android:clickable="true"
+          android:contentDescription="@string/back_to_home"
+          android:focusable="true"
+          android:padding="8dp"
+          android:src="@drawable/ic_back_arrow" />
+
+      <LinearLayout
+          android:layout_width="0dp"
+          android:layout_height="wrap_content"
+          android:layout_marginStart="8dp"
+          android:layout_weight="1"
+          android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/telegramChatListTitleTextView"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/telegram_chat_list_title"
+            android:textColor="@color/textPrimary"
+            android:textSize="20sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/telegramChatListSummaryTextView"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:textColor="@color/textSecondary"
+            android:textSize="13sp" />
+      </LinearLayout>
+
+      <Button
+          android:id="@+id/telegramLoadChatsButton"
+          android:layout_width="wrap_content"
+          android:layout_height="36dp"
+          android:background="@drawable/button_outline"
+          android:minWidth="0dp"
+          android:paddingStart="16dp"
+          android:paddingEnd="16dp"
+          android:text="@string/telegram_load_chats"
+          android:textAllCaps="false"
+          android:textColor="@color/accent"
+          android:textSize="13sp"
+          android:textStyle="bold" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/telegramChatListErrorTextView"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="24dp"
+        android:layout_marginTop="2dp"
+        android:layout_marginEnd="24dp"
+        android:textColor="@color/error"
+        android:textSize="13sp"
+        android:visibility="gone" />
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+      <androidx.recyclerview.widget.RecyclerView
+          android:id="@+id/telegramChatRecyclerView"
+          android:layout_width="match_parent"
+          android:layout_height="match_parent"
+          android:clipToPadding="false"
+          android:overScrollMode="never"
+          android:paddingStart="16dp"
+          android:paddingTop="12dp"
+          android:paddingEnd="16dp"
+          android:paddingBottom="16dp" />
+
+      <LinearLayout
+          android:id="@+id/telegramChatListLoadingStateContainer"
+          android:layout_width="match_parent"
+          android:layout_height="match_parent"
+          android:gravity="center"
+          android:orientation="vertical"
+          android:paddingStart="24dp"
+          android:paddingEnd="24dp"
+          android:visibility="gone">
+
+        <ProgressBar
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" />
+
+        <TextView
+            android:id="@+id/telegramChatListLoadingTextView"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="@string/telegram_chat_list_loading_body"
+            android:textColor="@color/textSecondary"
+            android:textSize="14sp" />
+      </LinearLayout>
+
+      <LinearLayout
+          android:id="@+id/telegramChatListEmptyStateContainer"
+          android:layout_width="match_parent"
+          android:layout_height="match_parent"
+          android:gravity="center"
+          android:orientation="vertical"
+          android:paddingStart="24dp"
+          android:paddingEnd="24dp"
+          android:visibility="gone">
+
+        <TextView
+            android:id="@+id/telegramChatListEmptyTitleTextView"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:textColor="@color/textPrimary"
+            android:textSize="22sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/telegramChatListEmptyBodyTextView"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:gravity="center"
+            android:textColor="@color/textSecondary"
+            android:textSize="15sp" />
+      </LinearLayout>
+    </FrameLayout>
+  </LinearLayout>
+
+  <LinearLayout
+      android:id="@+id/telegramChatMessagesScreen"
+      android:layout_width="match_parent"
+      android:layout_height="match_parent"
+      android:orientation="vertical"
+      android:visibility="gone">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="16dp"
+        android:paddingTop="16dp"
+        android:paddingEnd="16dp"
+        android:paddingBottom="8dp">
+
+      <ImageView
+          android:id="@+id/backFromTelegramChatMessages"
+          android:layout_width="40dp"
+          android:layout_height="40dp"
+          android:background="?attr/selectableItemBackgroundBorderless"
+          android:clickable="true"
+          android:contentDescription="@string/back_to_home"
+          android:focusable="true"
+          android:padding="8dp"
+          android:src="@drawable/ic_back_arrow" />
+
+      <LinearLayout
+          android:layout_width="0dp"
+          android:layout_height="wrap_content"
+          android:layout_marginStart="8dp"
+          android:layout_weight="1"
+          android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/telegramChatMessagesTitleTextView"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/telegram_chat_untitled"
+            android:textColor="@color/textPrimary"
+            android:textSize="20sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/telegramChatMessagesSummaryTextView"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:textColor="@color/textSecondary"
+            android:textSize="13sp" />
+      </LinearLayout>
+
+      <Button
+          android:id="@+id/telegramReloadMessagesButton"
+          android:layout_width="wrap_content"
+          android:layout_height="36dp"
+          android:background="@drawable/button_outline"
+          android:minWidth="0dp"
+          android:paddingStart="16dp"
+          android:paddingEnd="16dp"
+          android:text="@string/telegram_reload_messages"
+          android:textAllCaps="false"
+          android:textColor="@color/accent"
+          android:textSize="13sp"
+          android:textStyle="bold" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/telegramChatMessagesErrorTextView"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="24dp"
+        android:layout_marginTop="2dp"
+        android:layout_marginEnd="24dp"
+        android:textColor="@color/error"
+        android:textSize="13sp"
+        android:visibility="gone" />
+
+    <LinearLayout
+        android:id="@+id/telegramMessageSpeechControlsRow"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="24dp"
+        android:paddingTop="8dp"
+        android:paddingEnd="24dp"
+        android:paddingBottom="8dp">
+
+      <Button
+          android:id="@+id/telegramPlayMessagesButton"
+          android:layout_width="wrap_content"
+          android:layout_height="40dp"
+          android:background="@drawable/button_accent"
+          android:minWidth="0dp"
+          android:paddingStart="20dp"
+          android:paddingEnd="20dp"
+          android:text="@string/telegram_play_messages"
+          android:textAllCaps="false"
+          android:textColor="@color/textOnAccent"
+          android:textSize="14sp"
+          android:textStyle="bold" />
+
+      <Button
+          android:id="@+id/telegramStopMessagesButton"
+          android:layout_width="wrap_content"
+          android:layout_height="40dp"
+          android:layout_marginStart="10dp"
+          android:background="@drawable/button_outline"
+          android:enabled="false"
+          android:minWidth="0dp"
+          android:paddingStart="20dp"
+          android:paddingEnd="20dp"
+          android:text="@string/telegram_stop_messages_audio"
+          android:textAllCaps="false"
+          android:textColor="@color/accent"
+          android:textSize="14sp"
+          android:textStyle="bold" />
+
+      <TextView
+          android:id="@+id/telegramMessageSpeechStatusTextView"
+          android:layout_width="0dp"
+          android:layout_height="wrap_content"
+          android:layout_marginStart="12dp"
+          android:layout_weight="1"
+          android:ellipsize="end"
+          android:maxLines="1"
+          android:text="@string/telegram_message_speech_status_idle"
+          android:textColor="@color/textMuted"
+          android:textSize="12sp" />
+    </LinearLayout>
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+      <androidx.recyclerview.widget.RecyclerView
+          android:id="@+id/telegramMessageRecyclerView"
+          android:layout_width="match_parent"
+          android:layout_height="match_parent"
+          android:clipToPadding="false"
+          android:overScrollMode="never"
+          android:paddingStart="16dp"
+          android:paddingTop="12dp"
+          android:paddingEnd="16dp"
+          android:paddingBottom="16dp" />
+
+      <LinearLayout
+          android:id="@+id/telegramChatMessagesLoadingStateContainer"
+          android:layout_width="match_parent"
+          android:layout_height="match_parent"
+          android:gravity="center"
+          android:orientation="vertical"
+          android:paddingStart="24dp"
+          android:paddingEnd="24dp"
+          android:visibility="gone">
+
+        <ProgressBar
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" />
+
+        <TextView
+            android:id="@+id/telegramChatMessagesLoadingTextView"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="@string/telegram_chat_messages_summary_loading"
+            android:textColor="@color/textSecondary"
+            android:textSize="14sp" />
+      </LinearLayout>
+
+      <LinearLayout
+          android:id="@+id/telegramChatMessagesEmptyStateContainer"
+          android:layout_width="match_parent"
+          android:layout_height="match_parent"
+          android:gravity="center"
+          android:orientation="vertical"
+          android:paddingStart="24dp"
+          android:paddingEnd="24dp"
+          android:visibility="gone">
+
+        <TextView
+            android:id="@+id/telegramChatMessagesEmptyTitleTextView"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:textColor="@color/textPrimary"
+            android:textSize="22sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/telegramChatMessagesEmptyBodyTextView"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:gravity="center"
+            android:textColor="@color/textSecondary"
+            android:textSize="15sp" />
       </LinearLayout>
     </FrameLayout>
   </LinearLayout>
