@@ -292,8 +292,7 @@ class TelegramFeatureController(
 
   private fun restartAuthentication() {
     stopMessagePlayback(null)
-    clientManager.close()
-    ensureClientStarted()
+    clientManager.restart()
     showProviderScreen(ProviderDestination.CONNECT)
   }
 

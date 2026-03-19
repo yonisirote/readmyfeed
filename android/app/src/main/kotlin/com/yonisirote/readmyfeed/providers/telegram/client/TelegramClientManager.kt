@@ -27,6 +27,7 @@ class TelegramClientManager(
 
   private var client: TelegramTdlibClient? = null
   private var selectedChatId: Long? = null
+  private var shouldRestartAfterClose: Boolean = false
 
   val snapshot: StateFlow<TelegramClientSnapshot> = snapshotState.asStateFlow()
 
@@ -296,14 +297,18 @@ class TelegramClientManager(
     )
   }
 
-  fun close(): Unit {
-    val activeClient = synchronized(lock) { client } ?: return
-    activeClient.send(TdApi.Close()) { result ->
-      handleRequestResult(
-        requestName = "close",
-        result = result,
-      )
+  fun restart(): Unit {
+    val hasActiveClient = synchronized(lock) { client != null }
+    if (!hasActiveClient) {
+      start()
+      return
     }
+
+    requestClose(restartAfterClose = true)
+  }
+
+  fun close(): Unit {
+    requestClose(restartAfterClose = false)
   }
 
   internal fun handleUpdateForTesting(result: TdApi.Object): Unit {
@@ -343,6 +348,20 @@ class TelegramClientManager(
       message = "Telegram TDLib client has not been started.",
       code = TelegramAuthErrorCodes.CLIENT_NOT_STARTED,
     )
+  }
+
+  private fun requestClose(restartAfterClose: Boolean): Unit {
+    val activeClient = synchronized(lock) {
+      shouldRestartAfterClose = restartAfterClose
+      client
+    } ?: return
+
+    activeClient.send(TdApi.Close()) { result ->
+      handleRequestResult(
+        requestName = "close",
+        result = result,
+      )
+    }
   }
 
   private fun sendRequest(
@@ -475,8 +494,15 @@ class TelegramClientManager(
     }
 
     if (mappedState is TelegramAuthState.Closed) {
-      synchronized(lock) {
+      val shouldRestart = synchronized(lock) {
         client = null
+        val restart = shouldRestartAfterClose
+        shouldRestartAfterClose = false
+        restart
+      }
+
+      if (shouldRestart) {
+        start()
       }
     }
   }

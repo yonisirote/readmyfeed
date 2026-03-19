@@ -228,6 +228,26 @@ class TelegramClientManagerTest {
   }
 
   @Test
+  fun restartWaitsForClosedUpdateBeforeCreatingReplacementClient() {
+    val factory = FakeTelegramTdlibClientFactory()
+    val manager = TelegramClientManager(
+      clientFactory = factory,
+      parametersFactory = TelegramTdlibParametersFactory { TdApi.SetTdlibParameters() },
+    )
+
+    manager.start()
+    manager.restart()
+
+    assertEquals(1, factory.createCalls)
+    assertTrue(factory.client.requests.last() is TdApi.Close)
+
+    manager.handleUpdateForTesting(TdApi.UpdateAuthorizationState(TdApi.AuthorizationStateClosed()))
+
+    assertEquals(2, factory.createCalls)
+    assertEquals(TelegramAuthState.NotStarted, manager.snapshot.value.authState)
+  }
+
+  @Test
   fun exceptionsFromTdlibCallbacksAreStored() {
     val manager = TelegramClientManager(
       clientFactory = FakeTelegramTdlibClientFactory(),
