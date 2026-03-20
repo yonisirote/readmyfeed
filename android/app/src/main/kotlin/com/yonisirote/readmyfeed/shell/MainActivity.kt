@@ -2,6 +2,7 @@ package com.yonisirote.readmyfeed.shell
 
 import android.os.Bundle
 import android.view.View
+import android.widget.TextView
 import androidx.activity.addCallback
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.isVisible
@@ -11,7 +12,7 @@ import com.yonisirote.readmyfeed.providers.FeedProvider
 import com.yonisirote.readmyfeed.providers.ProviderFeatureRegistry
 import com.yonisirote.readmyfeed.providers.buildProviderFeatureRegistry
 
-private const val DISABLED_HOME_CARD_ALPHA = 0.5f
+private const val DISABLED_HOME_CARD_ALPHA = 0.82f
 
 class MainActivity : AppCompatActivity(), AppScreenHost {
   private lateinit var binding: ActivityMainBinding
@@ -66,26 +67,46 @@ class MainActivity : AppCompatActivity(), AppScreenHost {
 
     updateHomeCardState(
       card = binding.homeCardX,
-      isAvailable = providerRegistry.hasProvider(FeedProvider.X),
+      statusTextView = binding.homeCardXStatusTextView,
+      unavailableBadgeView = binding.homeCardXUnavailableBadgeTextView,
+      chevronView = binding.homeCardXChevronImageView,
+      state = resolveHomeProviderCardState(
+        provider = FeedProvider.X,
+        isAvailable = providerRegistry.hasProvider(FeedProvider.X),
+      ),
     )
     updateHomeCardState(
       card = binding.homeCardTelegram,
-      isAvailable = providerRegistry.hasProvider(FeedProvider.TELEGRAM),
+      statusTextView = binding.homeCardTelegramStatusTextView,
+      unavailableBadgeView = binding.homeCardTelegramUnavailableBadgeTextView,
+      chevronView = binding.homeCardTelegramChevronImageView,
+      state = resolveHomeProviderCardState(
+        provider = FeedProvider.TELEGRAM,
+        isAvailable = providerRegistry.hasProvider(FeedProvider.TELEGRAM),
+      ),
     )
 
-    if (!providerRegistry.hasActiveProviders()) {
-      binding.homeSubtitle.setText(R.string.home_subtitle_unavailable)
-    }
+    binding.homeSubtitle.setText(resolveHomeSubtitleTextResId(providerRegistry.hasActiveProviders()))
   }
 
-  private fun updateHomeCardState(card: View, isAvailable: Boolean) {
-    card.isEnabled = isAvailable
-    card.isClickable = isAvailable
-    card.isFocusable = isAvailable
-    card.alpha = if (isAvailable) 1f else DISABLED_HOME_CARD_ALPHA
+  private fun updateHomeCardState(
+    card: View,
+    statusTextView: TextView,
+    unavailableBadgeView: TextView,
+    chevronView: View,
+    state: HomeProviderCardState,
+  ) {
+    card.isEnabled = state.isAvailable
+    card.isClickable = state.isAvailable
+    card.isFocusable = state.isAvailable
+    card.alpha = if (state.isAvailable) 1f else DISABLED_HOME_CARD_ALPHA
     card.setBackgroundResource(
-      if (isAvailable) R.drawable.feed_card_selector else R.drawable.feed_card_disabled,
+      if (state.isAvailable) R.drawable.feed_card_selector else R.drawable.feed_card_disabled,
     )
+    statusTextView.setText(state.statusTextResId)
+    statusTextView.setTextColor(card.context.getColor(state.statusTextColorResId))
+    unavailableBadgeView.isVisible = state.showsUnavailableBadge
+    chevronView.isVisible = state.showsChevron
   }
 
   private fun setupBackPressHandler() {
@@ -100,4 +121,85 @@ class MainActivity : AppCompatActivity(), AppScreenHost {
       }
     }
   }
+}
+
+internal data class HomeProviderCardState(
+  val isAvailable: Boolean,
+  val showsUnavailableBadge: Boolean,
+  val showsChevron: Boolean,
+  val statusTextResId: Int,
+  val statusTextColorResId: Int,
+)
+
+internal fun resolveHomeProviderCardState(
+  provider: FeedProvider,
+  isAvailable: Boolean,
+): HomeProviderCardState {
+  return if (isAvailable) {
+    when (provider) {
+      FeedProvider.X -> HomeProviderCardState(
+        isAvailable = true,
+        showsUnavailableBadge = false,
+        showsChevron = true,
+        statusTextResId = R.string.home_card_x_available,
+        statusTextColorResId = R.color.textSecondary,
+      )
+      FeedProvider.TELEGRAM -> HomeProviderCardState(
+        isAvailable = true,
+        showsUnavailableBadge = false,
+        showsChevron = true,
+        statusTextResId = R.string.home_card_telegram_available,
+        statusTextColorResId = R.color.textSecondary,
+      )
+      FeedProvider.WHATSAPP -> HomeProviderCardState(
+        isAvailable = true,
+        showsUnavailableBadge = false,
+        showsChevron = true,
+        statusTextResId = R.string.coming_soon,
+        statusTextColorResId = R.color.textSecondary,
+      )
+      FeedProvider.FACEBOOK -> HomeProviderCardState(
+        isAvailable = true,
+        showsUnavailableBadge = false,
+        showsChevron = true,
+        statusTextResId = R.string.coming_soon,
+        statusTextColorResId = R.color.textSecondary,
+      )
+    }
+  } else {
+    when (provider) {
+      FeedProvider.X -> HomeProviderCardState(
+        isAvailable = false,
+        showsUnavailableBadge = true,
+        showsChevron = false,
+        statusTextResId = R.string.home_card_x_unavailable,
+        statusTextColorResId = R.color.comingSoonText,
+      )
+      FeedProvider.TELEGRAM -> HomeProviderCardState(
+        isAvailable = false,
+        showsUnavailableBadge = true,
+        showsChevron = false,
+        statusTextResId = R.string.home_card_telegram_unavailable,
+        statusTextColorResId = R.color.comingSoonText,
+      )
+      FeedProvider.WHATSAPP -> HomeProviderCardState(
+        isAvailable = false,
+        showsUnavailableBadge = true,
+        showsChevron = false,
+        statusTextResId = R.string.coming_soon,
+        statusTextColorResId = R.color.comingSoonText,
+      )
+      FeedProvider.FACEBOOK -> HomeProviderCardState(
+        isAvailable = false,
+        showsUnavailableBadge = true,
+        showsChevron = false,
+        statusTextResId = R.string.coming_soon,
+        statusTextColorResId = R.color.comingSoonText,
+      )
+    }
+  }
+}
+
+internal fun resolveHomeSubtitleTextResId(hasActiveProviders: Boolean): Int {
+  return if (hasActiveProviders) R.string.home_subtitle else R.string.home_subtitle_unavailable
 }

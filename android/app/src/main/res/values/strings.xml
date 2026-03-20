@@ -60,6 +60,11 @@
   <string name="home_title">Choose your feed</string>
   <string name="home_subtitle">Select a platform to get started</string>
   <string name="home_subtitle_unavailable">No feeds are ready right now. Fix the startup issue and reopen the app to try again.</string>
+  <string name="home_card_x_available">Capture your X session and load the following timeline.</string>
+  <string name="home_card_x_unavailable">X is temporarily unavailable right now.</string>
+  <string name="home_card_telegram_available">Open your chats and read unread messages aloud.</string>
+  <string name="home_card_telegram_unavailable">Telegram is temporarily unavailable right now.</string>
+  <string name="home_provider_unavailable_short">Unavailable</string>
   <string name="platform_x">X (Twitter)</string>
   <string name="platform_telegram">Telegram</string>
   <string name="platform_whatsapp">WhatsApp</string>

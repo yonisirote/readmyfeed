@@ -81,19 +81,50 @@
               android:src="@drawable/ic_x_logo" />
         </FrameLayout>
 
-        <TextView
+        <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_marginStart="16dp"
             android:layout_weight="1"
-            android:text="@string/platform_x"
-            android:textColor="@color/textPrimary"
-            android:textSize="17sp"
-            android:textStyle="bold" />
+            android:orientation="vertical">
+
+          <TextView
+              android:layout_width="wrap_content"
+              android:layout_height="wrap_content"
+              android:text="@string/platform_x"
+              android:textColor="@color/textPrimary"
+              android:textSize="17sp"
+              android:textStyle="bold" />
+
+          <TextView
+              android:id="@+id/homeCardXStatusTextView"
+              android:layout_width="wrap_content"
+              android:layout_height="wrap_content"
+              android:layout_marginTop="4dp"
+              android:text="@string/home_card_x_available"
+              android:textColor="@color/textSecondary"
+              android:textSize="13sp" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/homeCardXUnavailableBadgeTextView"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/feed_card_disabled"
+            android:paddingStart="10dp"
+            android:paddingTop="4dp"
+            android:paddingEnd="10dp"
+            android:paddingBottom="4dp"
+            android:text="@string/home_provider_unavailable_short"
+            android:textColor="@color/comingSoonText"
+            android:textSize="11sp"
+            android:visibility="gone" />
 
         <ImageView
+            android:id="@+id/homeCardXChevronImageView"
             android:layout_width="20dp"
             android:layout_height="20dp"
+            android:layout_marginStart="12dp"
             android:contentDescription="@null"
             android:rotation="180"
             android:src="@drawable/ic_back_arrow" />
@@ -129,19 +160,50 @@
               android:src="@drawable/ic_telegram" />
         </FrameLayout>
 
-        <TextView
+        <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_marginStart="16dp"
             android:layout_weight="1"
-            android:text="@string/platform_telegram"
-            android:textColor="@color/textPrimary"
-            android:textSize="17sp"
-            android:textStyle="bold" />
+            android:orientation="vertical">
+
+          <TextView
+              android:layout_width="wrap_content"
+              android:layout_height="wrap_content"
+              android:text="@string/platform_telegram"
+              android:textColor="@color/textPrimary"
+              android:textSize="17sp"
+              android:textStyle="bold" />
+
+          <TextView
+              android:id="@+id/homeCardTelegramStatusTextView"
+              android:layout_width="wrap_content"
+              android:layout_height="wrap_content"
+              android:layout_marginTop="4dp"
+              android:text="@string/home_card_telegram_available"
+              android:textColor="@color/textSecondary"
+              android:textSize="13sp" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/homeCardTelegramUnavailableBadgeTextView"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/feed_card_disabled"
+            android:paddingStart="10dp"
+            android:paddingTop="4dp"
+            android:paddingEnd="10dp"
+            android:paddingBottom="4dp"
+            android:text="@string/home_provider_unavailable_short"
+            android:textColor="@color/comingSoonText"
+            android:textSize="11sp"
+            android:visibility="gone" />
 
         <ImageView
+            android:id="@+id/homeCardTelegramChevronImageView"
             android:layout_width="20dp"
             android:layout_height="20dp"
+            android:layout_marginStart="12dp"
             android:contentDescription="@null"
             android:rotation="180"
             android:src="@drawable/ic_back_arrow" />
