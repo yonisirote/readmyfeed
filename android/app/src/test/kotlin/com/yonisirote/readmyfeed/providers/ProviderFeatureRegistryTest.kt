@@ -10,7 +10,7 @@ import org.junit.Test
 
 class ProviderFeatureRegistryTest {
   @Test
-  fun initializeAllStopsOnFirstFailure() {
+  fun initializeAllKeepsSuccessfulProvidersActive() {
     val first = FakeProviderFeatureController(
       provider = FeedProvider.X,
       initializeResult = true,
@@ -26,38 +26,41 @@ class ProviderFeatureRegistryTest {
 
     val registry = ProviderFeatureRegistry(listOf(first, second, third))
 
-    assertFalse(registry.initializeAll())
+    registry.initializeAll()
     assertEquals(1, first.initializeCalls)
     assertEquals(1, second.initializeCalls)
-    assertEquals(0, third.initializeCalls)
+    assertEquals(1, third.initializeCalls)
+    assertTrue(registry.hasProvider(FeedProvider.X))
+    assertFalse(registry.hasProvider(FeedProvider.TELEGRAM))
+    assertTrue(registry.hasProvider(FeedProvider.WHATSAPP))
   }
 
   @Test
-  fun supportsDelegatesAcrossControllers() {
+  fun supportsIgnoresProvidersThatFailedInitialization() {
     val xScreen = AppScreen.ProviderScreen(
       provider = FeedProvider.X,
       destination = ProviderDestination.CONTENT_LIST,
     )
+    val telegramScreen = AppScreen.ProviderScreen(
+      provider = FeedProvider.TELEGRAM,
+      destination = ProviderDestination.CHAT_LIST,
+    )
     val xController = FakeProviderFeatureController(
       provider = FeedProvider.X,
+      initializeResult = true,
       supportedScreens = setOf(xScreen),
     )
     val telegramController = FakeProviderFeatureController(
       provider = FeedProvider.TELEGRAM,
-      supportedScreens = emptySet(),
+      initializeResult = false,
+      supportedScreens = setOf(telegramScreen),
     )
 
     val registry = ProviderFeatureRegistry(listOf(xController, telegramController))
+    registry.initializeAll()
 
     assertTrue(registry.supports(xScreen))
-    assertFalse(
-      registry.supports(
-        AppScreen.ProviderScreen(
-          provider = FeedProvider.TELEGRAM,
-          destination = ProviderDestination.CHAT_LIST,
-        ),
-      ),
-    )
+    assertFalse(registry.supports(telegramScreen))
   }
 
   @Test
@@ -66,6 +69,7 @@ class ProviderFeatureRegistryTest {
     val telegramController = FakeProviderFeatureController(provider = FeedProvider.TELEGRAM)
 
     val registry = ProviderFeatureRegistry(listOf(xController, telegramController))
+    registry.initializeAll()
 
     assertTrue(registry.openFromHome(FeedProvider.TELEGRAM))
     assertEquals(0, xController.openFromHomeCalls)
@@ -73,10 +77,27 @@ class ProviderFeatureRegistryTest {
   }
 
   @Test
+  fun openFromHomeReturnsFalseWhenProviderFailedInitialization() {
+    val xController = FakeProviderFeatureController(provider = FeedProvider.X)
+    val telegramController = FakeProviderFeatureController(
+      provider = FeedProvider.TELEGRAM,
+      initializeResult = false,
+    )
+
+    val registry = ProviderFeatureRegistry(listOf(xController, telegramController))
+    registry.initializeAll()
+
+    assertFalse(registry.openFromHome(FeedProvider.TELEGRAM))
+    assertEquals(0, xController.openFromHomeCalls)
+    assertEquals(0, telegramController.openFromHomeCalls)
+  }
+
+  @Test
   fun openFromHomeReturnsFalseWhenProviderMissing() {
     val registry = ProviderFeatureRegistry(
       listOf(FakeProviderFeatureController(provider = FeedProvider.X)),
     )
+    registry.initializeAll()
 
     assertFalse(registry.openFromHome(FeedProvider.TELEGRAM))
   }
@@ -97,11 +118,32 @@ class ProviderFeatureRegistryTest {
     )
 
     val registry = ProviderFeatureRegistry(listOf(first, second, third))
+    registry.initializeAll()
 
     assertTrue(registry.handleBackPress())
     assertEquals(1, first.handleBackPressCalls)
     assertEquals(1, second.handleBackPressCalls)
     assertEquals(0, third.handleBackPressCalls)
+  }
+
+  @Test
+  fun handleBackPressSkipsProvidersThatFailedInitialization() {
+    val first = FakeProviderFeatureController(
+      provider = FeedProvider.X,
+      initializeResult = false,
+      handleBackPressResult = true,
+    )
+    val second = FakeProviderFeatureController(
+      provider = FeedProvider.TELEGRAM,
+      handleBackPressResult = true,
+    )
+
+    val registry = ProviderFeatureRegistry(listOf(first, second))
+    registry.initializeAll()
+
+    assertTrue(registry.handleBackPress())
+    assertEquals(0, first.handleBackPressCalls)
+    assertEquals(1, second.handleBackPressCalls)
   }
 
   @Test
@@ -111,6 +153,7 @@ class ProviderFeatureRegistryTest {
     val screen = AppScreen.Home
 
     val registry = ProviderFeatureRegistry(listOf(first, second))
+    registry.initializeAll()
 
     registry.render(screen)
 
@@ -124,6 +167,7 @@ class ProviderFeatureRegistryTest {
     val second = FakeProviderFeatureController(provider = FeedProvider.TELEGRAM)
 
     val registry = ProviderFeatureRegistry(listOf(first, second))
+    registry.initializeAll()
 
     registry.onDestroy()
 

@@ -8,6 +8,8 @@ class ProviderFeatureRegistry(
   private val orderedControllers: List<ProviderFeatureController> = controllers.toList()
   private val controllersByProvider: Map<FeedProvider, ProviderFeatureController> =
     orderedControllers.associateBy { it.provider }
+  private val activeControllers = mutableListOf<ProviderFeatureController>()
+  private val activeControllersByProvider = mutableMapOf<FeedProvider, ProviderFeatureController>()
 
   init {
     require(controllersByProvider.size == orderedControllers.size) {
@@ -15,38 +17,44 @@ class ProviderFeatureRegistry(
     }
   }
 
-  fun initializeAll(): Boolean {
+  fun initializeAll() {
+    activeControllers.clear()
+    activeControllersByProvider.clear()
+
     for (controller in orderedControllers) {
-      if (!controller.initialize()) {
-        return false
+      if (controller.initialize()) {
+        activeControllers += controller
+        activeControllersByProvider[controller.provider] = controller
       }
     }
-
-    return true
   }
 
   fun hasProvider(provider: FeedProvider): Boolean {
-    return controllersByProvider.containsKey(provider)
+    return activeControllersByProvider.containsKey(provider)
+  }
+
+  fun hasActiveProviders(): Boolean {
+    return activeControllers.isNotEmpty()
   }
 
   fun supports(screen: AppScreen): Boolean {
-    return orderedControllers.any { controller -> controller.supports(screen) }
+    return activeControllers.any { controller -> controller.supports(screen) }
   }
 
   fun render(screen: AppScreen) {
-    for (controller in orderedControllers) {
+    for (controller in activeControllers) {
       controller.render(screen)
     }
   }
 
   fun openFromHome(provider: FeedProvider): Boolean {
-    val controller = controllersByProvider[provider] ?: return false
+    val controller = activeControllersByProvider[provider] ?: return false
     controller.openFromHome()
     return true
   }
 
   fun handleBackPress(): Boolean {
-    return orderedControllers.any { controller -> controller.handleBackPress() }
+    return activeControllers.any { controller -> controller.handleBackPress() }
   }
 
   fun onDestroy() {

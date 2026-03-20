@@ -59,6 +59,7 @@
   <string name="feed_count_views">%1$s views</string>
   <string name="home_title">Choose your feed</string>
   <string name="home_subtitle">Select a platform to get started</string>
+  <string name="home_subtitle_unavailable">No feeds are ready right now. Fix the startup issue and reopen the app to try again.</string>
   <string name="platform_x">X (Twitter)</string>
   <string name="platform_telegram">Telegram</string>
   <string name="platform_whatsapp">WhatsApp</string>

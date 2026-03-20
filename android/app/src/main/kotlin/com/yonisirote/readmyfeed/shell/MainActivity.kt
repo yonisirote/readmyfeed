@@ -1,13 +1,17 @@
 package com.yonisirote.readmyfeed.shell
 
 import android.os.Bundle
+import android.view.View
 import androidx.activity.addCallback
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.isVisible
+import com.yonisirote.readmyfeed.R
 import com.yonisirote.readmyfeed.databinding.ActivityMainBinding
 import com.yonisirote.readmyfeed.providers.FeedProvider
 import com.yonisirote.readmyfeed.providers.ProviderFeatureRegistry
 import com.yonisirote.readmyfeed.providers.buildProviderFeatureRegistry
+
+private const val DISABLED_HOME_CARD_ALPHA = 0.5f
 
 class MainActivity : AppCompatActivity(), AppScreenHost {
   private lateinit var binding: ActivityMainBinding
@@ -25,9 +29,7 @@ class MainActivity : AppCompatActivity(), AppScreenHost {
       binding = binding,
       screenHost = this,
     )
-    if (!providerRegistry.initializeAll()) {
-      return
-    }
+    providerRegistry.initializeAll()
 
     setupHomeScreen()
     setupBackPressHandler()
@@ -61,6 +63,29 @@ class MainActivity : AppCompatActivity(), AppScreenHost {
     binding.homeCardTelegram.setOnClickListener {
       providerRegistry.openFromHome(FeedProvider.TELEGRAM)
     }
+
+    updateHomeCardState(
+      card = binding.homeCardX,
+      isAvailable = providerRegistry.hasProvider(FeedProvider.X),
+    )
+    updateHomeCardState(
+      card = binding.homeCardTelegram,
+      isAvailable = providerRegistry.hasProvider(FeedProvider.TELEGRAM),
+    )
+
+    if (!providerRegistry.hasActiveProviders()) {
+      binding.homeSubtitle.setText(R.string.home_subtitle_unavailable)
+    }
+  }
+
+  private fun updateHomeCardState(card: View, isAvailable: Boolean) {
+    card.isEnabled = isAvailable
+    card.isClickable = isAvailable
+    card.isFocusable = isAvailable
+    card.alpha = if (isAvailable) 1f else DISABLED_HOME_CARD_ALPHA
+    card.setBackgroundResource(
+      if (isAvailable) R.drawable.feed_card_selector else R.drawable.feed_card_disabled,
+    )
   }
 
   private fun setupBackPressHandler() {
