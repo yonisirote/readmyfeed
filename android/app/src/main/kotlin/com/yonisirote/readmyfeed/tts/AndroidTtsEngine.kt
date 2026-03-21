@@ -51,6 +51,7 @@ class AndroidTtsEngine(
       }
 
       val initResult = CompletableDeferred<Int>()
+      // Construct TextToSpeech on the main thread to match Android service expectations.
       val instance = withContext(Dispatchers.Main.immediate) {
         createTextToSpeech(applicationContext) { status ->
           if (!initResult.isCompleted) {
@@ -73,6 +74,7 @@ class AndroidTtsEngine(
         }
 
         withContext(Dispatchers.Main.immediate) {
+          // Route playback through speech-focused audio attributes for better ducking/routing.
           instance.setAudioAttributes(
             AudioAttributes.Builder()
               .setUsage(AudioAttributes.USAGE_ASSISTANCE_ACCESSIBILITY)
@@ -123,6 +125,7 @@ class AndroidTtsEngine(
   override suspend fun speak(text: String, options: TtsSpeakOptions) {
     val tts = requireTextToSpeech()
 
+    // Android TTS keeps global engine state, so serialize callers around one active utterance.
     speakMutex.withLock {
       val utteranceId = UUID.randomUUID().toString()
       val completion = CompletableDeferred<Unit>()
@@ -214,6 +217,7 @@ class AndroidTtsEngine(
     tts.setPitch(options.pitch ?: defaultPitch)
     tts.setSpeechRate(options.rate ?: defaultRate)
 
+    // An explicit voice should win because setLanguage can silently swap the engine's voice.
     if (!options.voice.isNullOrBlank()) {
       applyVoice(tts, options.voice)
       return
@@ -243,6 +247,7 @@ class AndroidTtsEngine(
   }
 
   private fun applyLanguage(tts: TextToSpeech, language: String) {
+    // Android returns several success-ish codes here, so only hard failures abort playback.
     when (tts.setLanguage(Locale.forLanguageTag(language))) {
       TextToSpeech.LANG_NOT_SUPPORTED -> {
         throw TtsException(
@@ -278,6 +283,7 @@ class AndroidTtsEngine(
       }
 
       override fun onStop(utteranceId: String?, interrupted: Boolean) {
+        // Treat stop as completion so cancelled/flush utterances still unblock suspended callers.
         finishActiveUtterance(utteranceId)
       }
 
@@ -309,6 +315,7 @@ class AndroidTtsEngine(
       val language = voice.locale?.toLanguageTag().orEmpty()
       val identifier = voice.name.orEmpty()
 
+      // Ignore malformed placeholder voices that do not expose a real locale or identifier.
       if (language.isBlank() || language == "und" || identifier.isBlank()) {
         return@mapNotNull null
       }
@@ -323,6 +330,7 @@ class AndroidTtsEngine(
   }
 
   private fun Voice.toTtsVoiceQuality(): TtsVoiceQuality {
+    // Android exposes opaque vendor quality integers, so map them into coarse app-level buckets.
     return when {
       quality >= enhancedVoiceQualityThreshold -> TtsVoiceQuality.ENHANCED
       quality > 0 -> TtsVoiceQuality.DEFAULT

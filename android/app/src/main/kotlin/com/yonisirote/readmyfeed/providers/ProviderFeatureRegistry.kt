@@ -42,6 +42,7 @@ class ProviderFeatureRegistry(
   }
 
   fun render(screen: AppScreen) {
+    // Each active controller owns part of the shared layout and decides its own visibility.
     for (controller in activeControllers) {
       controller.render(screen)
     }

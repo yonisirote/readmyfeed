@@ -111,6 +111,7 @@ fun buildCookieString(cookies: Map<String, String>): String {
     )
   }
 
+  // Keep a stable, browser-like cookie string for replaying the captured web session.
   return orderedParts.joinToString(separator = "; ", postfix = ";")
 }
 

@@ -10,6 +10,7 @@ class XAuthService(
 
   fun captureSession(): XAuthCaptureResult {
     val cookieResult = cookieReader.readCookies()
+    // Return partial diagnostics so the WebView flow can decide whether a later retry is worthwhile.
     if (!cookieResult.hasRequired) {
       return XAuthCaptureResult(session = null, cookieResult = cookieResult)
     }

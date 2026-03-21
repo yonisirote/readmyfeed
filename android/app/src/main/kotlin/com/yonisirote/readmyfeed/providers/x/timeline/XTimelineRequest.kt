@@ -14,6 +14,7 @@ private const val X_WEB_AUTH_BEARER_TOKEN =
 
 private const val DEFAULT_BATCH_SIZE = 40
 
+// These feature flags come from the web client contract and may need refreshing when X changes it.
 private val FOLLOWING_FEATURES_JSON = """
   {
     "rweb_video_screen_enabled":false,
@@ -83,6 +84,7 @@ fun buildFollowingTimelineUrl(count: Int = DEFAULT_BATCH_SIZE, cursor: String? =
 }
 
 fun buildTimelineHeaders(cookieString: String, csrfToken: String): Map<String, String> {
+  // Mirror the logged-in web app header shape closely enough for GraphQL requests to stick.
   return linkedMapOf(
     "accept" to "*/*",
     "authorization" to "Bearer $X_WEB_AUTH_BEARER_TOKEN",

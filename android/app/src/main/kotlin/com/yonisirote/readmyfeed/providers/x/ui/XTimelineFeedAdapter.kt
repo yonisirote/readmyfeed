@@ -47,6 +47,7 @@ class XTimelineFeedAdapter : ListAdapter<XTimelineItem, XTimelineFeedAdapter.Tim
 
       binding.bodyTextView.text = item.text.ifBlank { context.getString(R.string.tweet_fallback_text) }
 
+      // Keep the quote card visible for media-only or author-only quotes that have no text body.
       val hasQuote = item.quotedText.isNotBlank() || item.quotedMedia.isNotEmpty() || item.quotedAuthorHandle.isNotBlank()
       binding.quoteContainer.isVisible = hasQuote
       binding.quoteTitleTextView.text = if (item.quotedAuthorHandle.isNotBlank()) {

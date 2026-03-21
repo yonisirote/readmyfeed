@@ -20,6 +20,7 @@ class AndroidTelegramTdlibParametersFactory(
     val databaseDirectory = ensureDirectory(File(rootDirectory, "database"))
     val filesDirectory = ensureDirectory(File(rootDirectory, "files"))
 
+    // Keep TDLib state in no-backup storage and opt into its built-in database/files support.
     return TdApi.SetTdlibParameters(
       config.useTestDc,
       databaseDirectory.absolutePath,

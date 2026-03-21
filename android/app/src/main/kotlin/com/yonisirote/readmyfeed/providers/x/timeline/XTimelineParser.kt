@@ -98,6 +98,7 @@ private fun findByFilter(data: JsonElement, key: String, value: String): List<Js
 
 private fun getTimelineInstructions(payload: JsonElement): List<JsonElement> {
   val root = payload.jsonObjectOrNull()
+  // X has moved the same timeline payload between several root shapes over time.
   val candidates = listOfNotNull(
     root?.getObject("data")?.getObject("home")?.getObject("home_timeline_urt"),
     root?.getObject("home")?.getObject("home_timeline_urt"),
@@ -116,6 +117,7 @@ private fun getTimelineInstructions(payload: JsonElement): List<JsonElement> {
 }
 
 private fun getInstructionEntries(instruction: JsonObject): List<JsonObject> {
+  // Some instruction variants expose entries[], others only a single entry object.
   val entries = instruction["entries"].jsonArrayOrEmpty().mapNotNull { it.jsonObjectOrNull() }.toMutableList()
   instruction["entry"].jsonObjectOrNull()?.let(entries::add)
   return entries
@@ -129,6 +131,7 @@ private fun extractBottomCursorFromNode(node: JsonElement?): String {
     return value
   }
 
+  // Cursor records are often nested under content/itemContent wrappers instead of the entry itself.
   val nestedContent = extractBottomCursorFromNode(record["content"])
   if (nestedContent.isNotBlank()) {
     return nestedContent
@@ -165,6 +168,7 @@ private fun extractTweet(timelineTweetNode: JsonObject): XTimelineItem? {
     return null
   }
 
+  // Long-form tweets can move visible text into note_tweet while legacy.full_text stays truncated.
   val noteTweetResult = result.getObject("note_tweet")
     ?.getObject("note_tweet_results")
     ?.getObject("result")
@@ -226,6 +230,7 @@ private fun extractTweet(timelineTweetNode: JsonObject): XTimelineItem? {
 }
 
 private fun extractMedia(legacy: JsonObject?): List<XTimelineMedia> {
+  // Rich media lives under extended_entities when X includes playable video/GIF variants.
   val mediaEntries = legacy?.getObject("extended_entities")?.get("media").jsonArrayOrEmpty()
 
   return mediaEntries.mapNotNull { entry ->
@@ -255,6 +260,7 @@ private fun extractBestMediaUrl(media: JsonObject): Pair<String, String?> {
       var selectedUrl = ""
       var selectedBitrate = -1
 
+      // Prefer the highest-bitrate MP4 when present, but keep any usable URL as a fallback.
       for (variantElement in variants) {
         val variant = variantElement.jsonObjectOrNull() ?: continue
         val contentType = variant["content_type"].stringValue()
@@ -295,6 +301,7 @@ private fun unwrapTweetResult(value: JsonObject?): JsonObject? {
     return null
   }
 
+  // Visibility results wrap the real tweet payload one level deeper.
   return if (value["__typename"].stringValue() == "TweetWithVisibilityResults") {
     value.getObject("tweet")
   } else {
@@ -307,6 +314,7 @@ private fun toIsoDate(rawDate: String): String {
     return ""
   }
 
+  // Accept both legacy X web timestamps and ISO strings to stay resilient to payload drift.
   return try {
     OffsetDateTime.parse(rawDate, xDateFormatter).toInstant().toString()
   } catch (_: Exception) {

@@ -1,5 +1,6 @@
 package com.yonisirote.readmyfeed.tts
 
+// Map content languages to concrete engine locales we actually want to request.
 private val speechLanguageByContentLanguage = mapOf(
   "en" to "en-US",
   "he" to "he-IL",
@@ -33,5 +34,6 @@ fun getSpeakableItemText(item: SpeakableItem): String {
     "says:"
   }
 
+  // Use the resolved speech language here so mixed-script posts still sound natural.
   return "${item.authorLabel.trim()} $connector ${item.text.trim()}".trim()
 }

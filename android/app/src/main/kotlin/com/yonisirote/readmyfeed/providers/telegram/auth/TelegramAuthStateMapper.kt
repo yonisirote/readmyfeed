@@ -7,6 +7,7 @@ fun mapTelegramAuthorizationState(state: TdApi.AuthorizationState?): TelegramAut
     return TelegramAuthState.NotStarted
   }
 
+  // Collapse raw TDLib auth objects into app-owned states so UI logic stays stable if TDLib expands.
   return when (state) {
     is TdApi.AuthorizationStateWaitTdlibParameters -> TelegramAuthState.WaitTdlibParameters
     is TdApi.AuthorizationStateWaitPhoneNumber -> TelegramAuthState.WaitPhoneNumber

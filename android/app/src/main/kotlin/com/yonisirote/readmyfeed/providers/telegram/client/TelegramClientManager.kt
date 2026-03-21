@@ -95,6 +95,7 @@ class TelegramClientManager(
     val selectedPreview = snapshot.value.chatPreviews.firstOrNull { preview -> preview.chatId == chatId }
     synchronized(lock) {
       selectedChatId = chatId
+      // clearChatSelectionLocked also clears selectedChatId, so set it again after wiping old messages.
       clearChatSelectionLocked()
       selectedChatId = chatId
     }
@@ -279,6 +280,7 @@ class TelegramClientManager(
       errorCode = TelegramAuthErrorCodes.PHONE_NUMBER_NOT_ALLOWED,
       message = "Telegram is not waiting for QR confirmation.",
     )
+    // TDLib uses an empty phone-number request as the escape hatch back out of QR auth.
     sendRequest(
       request = TdApi.SetAuthenticationPhoneNumber("", null),
       requestName = "setAuthenticationPhoneNumber",
@@ -378,6 +380,7 @@ class TelegramClientManager(
   }
 
   private fun handleTdlibObject(result: TdApi.Object): Unit {
+    // Cache broad chat metadata, but keep full message objects only for the currently selected chat.
     when (result) {
       is TdApi.UpdateAuthorizationState -> handleAuthorizationState(result.authorizationState)
       is TdApi.UpdateUser -> upsertUser(result.user)
@@ -446,6 +449,7 @@ class TelegramClientManager(
   private fun handleAuthorizationState(state: TdApi.AuthorizationState?): Unit {
     val mappedState = mapTelegramAuthorizationState(state)
     if (mappedState !is TelegramAuthState.Ready) {
+      // Chat and message state is session-scoped, so drop it whenever auth leaves Ready.
       clearCachedState()
       snapshotState.value = snapshot.value.copy(
         authState = mappedState,
@@ -470,6 +474,7 @@ class TelegramClientManager(
     }
 
     if (state is TdApi.AuthorizationStateWaitTdlibParameters) {
+      // TDLib asks for parameters asynchronously after startup instead of taking them up front.
       val parameters = try {
         parametersFactory.create()
       } catch (error: TelegramClientException) {
@@ -490,10 +495,12 @@ class TelegramClientManager(
     }
 
     if (mappedState is TelegramAuthState.Ready) {
+      // Ready is the first point where chat loading is meaningful.
       loadChatList()
     }
 
     if (mappedState is TelegramAuthState.Closed) {
+      // Closed is the safe teardown point after TDLib finishes its async shutdown.
       val shouldRestart = synchronized(lock) {
         client = null
         val restart = shouldRestartAfterClose
@@ -516,6 +523,7 @@ class TelegramClientManager(
         lastError = null,
       )
       is TdApi.Error -> {
+        // TDLib uses 404 here to mean there are no more chats to page in.
         if (result.code == TELEGRAM_CHAT_LIST_COMPLETE_ERROR_CODE) {
           snapshotState.value = snapshot.value.copy(
             isChatListLoading = false,
@@ -593,6 +601,7 @@ class TelegramClientManager(
     chatId: Long,
     result: TdApi.Object,
   ): Unit {
+    // Drop stale async history results if the user switched chats before the response came back.
     if (!isSelectedChat(chatId)) {
       return
     }
@@ -868,6 +877,7 @@ class TelegramClientManager(
     val missingUserIds = linkedSetOf<Long>()
     val missingChatIds = linkedSetOf<Long>()
 
+    // TDLib can deliver message shells before the related user/chat objects arrive.
     synchronized(lock) {
       messages.forEach { message ->
         if (activeSelectedChatId != null && message.chatId != activeSelectedChatId) {
@@ -905,6 +915,7 @@ class TelegramClientManager(
     fallbackPreview: TelegramChatPreview?,
   ): List<TelegramMessageItem> {
     val chatId = selectedChatId ?: return emptyList()
+    // Narrow raw history down to the unread, speakable slice used by both UI and playback.
     return buildUnreadTelegramMessageItems(
       messages = selectedChatMessagesById.values,
       chat = chatsById[chatId],
@@ -985,6 +996,7 @@ class TelegramClientManager(
       .filterNot { position -> isSameChatList(position.list, newPosition.list) }
       .toMutableList()
 
+    // TDLib sends incremental per-list position updates, so replace only the matching list entry.
     if (newPosition.order > 0L) {
       nextPositions += newPosition
     }

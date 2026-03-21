@@ -72,6 +72,7 @@ private fun pickPreferredVoice(voices: List<TtsVoice>): TtsVoice? {
 }
 
 fun findBestVoiceForLanguage(voices: List<TtsVoice>, language: String): TtsVoice? {
+  // Try exact locale matches first, then relax to broader language aliases and fallbacks.
   for (candidate in getLanguageCandidates(language)) {
     val matchedVoice = pickPreferredVoice(
       voices.filter { normalizeLanguageTag(it.language) == candidate },

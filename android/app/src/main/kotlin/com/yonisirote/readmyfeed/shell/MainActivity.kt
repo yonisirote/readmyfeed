@@ -39,12 +39,14 @@ class MainActivity : AppCompatActivity(), AppScreenHost {
 
   override fun onDestroy() {
     if (::providerRegistry.isInitialized) {
+      // Let providers release view/activity resources before the activity fully tears down.
       providerRegistry.onDestroy()
     }
     super.onDestroy()
   }
 
   override fun showScreen(screen: AppScreen) {
+    // Unsupported provider destinations always collapse back to Home at the shell boundary.
     currentScreen = normalizeScreen(screen)
     binding.homeScreen.isVisible = currentScreen is AppScreen.Home
     providerRegistry.render(currentScreen)

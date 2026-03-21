@@ -29,6 +29,7 @@ data class TelegramConnectScreenState(
 )
 
 fun resolveTelegramConnectScreenState(snapshot: TelegramClientSnapshot): TelegramConnectScreenState {
+  // Collapse fine-grained TDLib auth states into a smaller set of UI stages.
   val stage = when (snapshot.authState) {
     TelegramAuthState.NotStarted -> TelegramConnectStage.IDLE
     TelegramAuthState.WaitTdlibParameters,

@@ -18,6 +18,7 @@ fun XTimelineItem.toSpeakableItem(): SpeakableItem {
     ""
   }
 
+  // Fold quote context into the spoken body so playback matches the timeline card, not raw tweet text.
   val body = if (isQuote && quotedText.isNotBlank()) {
     val quoteAttribution = if (quotedAuthorHandle.isNotBlank()) {
       "Quoting $quotedAuthorHandle. "

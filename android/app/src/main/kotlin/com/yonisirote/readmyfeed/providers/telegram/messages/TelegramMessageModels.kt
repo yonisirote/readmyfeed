@@ -42,6 +42,7 @@ internal fun buildUnreadTelegramMessageItems(
         fallbackChatPreview = fallbackChatPreview,
       )
     }
+    // This list is for reading aloud, not raw history, so keep only speakable unread items in order.
     .filter { item -> item.isSpeakable() }
     .sortedBy { item -> item.messageId }
     .toList()
@@ -62,6 +63,7 @@ private fun mapTelegramMessageItem(
   val chatTitle = chat?.title.orEmpty().trim().ifBlank {
     fallbackChatPreview?.title.orEmpty().trim()
   }
+  // TDLib unread state is derived from the inbox read marker and ignores outgoing messages.
   val isUnread = !message.isOutgoing && message.id > (chat?.lastReadInboxMessageId ?: 0L)
 
   return TelegramMessageItem(
@@ -128,6 +130,7 @@ private fun resolveTelegramMessageAuthorLabel(
     return authorSignature
   }
 
+  // Sender metadata can be partial, so fall back through user/chat labels before giving up.
   return when (val sender = message.senderId) {
     is TdApi.MessageSenderUser -> {
       resolveTelegramUserLabel(usersById[sender.userId])

@@ -161,6 +161,7 @@ class TelegramFeatureController(
         true
       }
       isOnProviderDestination(ProviderDestination.CHAT_MESSAGES) -> {
+        // Message playback and chat selection are screen-scoped, so back clears both.
         stopMessagePlayback(null)
         clientManager.clearSelectedChat()
         showProviderScreen(ProviderDestination.CHAT_LIST)
@@ -261,6 +262,7 @@ class TelegramFeatureController(
         renderChatListScreen(snapshot)
         renderChatMessagesScreen(snapshot)
 
+        // Navigation stays derived from auth/selection state so stale screens self-correct.
         when {
           snapshot.authState is TelegramAuthState.Ready && isOnProviderDestination(ProviderDestination.CONNECT) -> {
             showProviderScreen(ProviderDestination.CHAT_LIST)
@@ -488,6 +490,7 @@ class TelegramFeatureController(
     binding.telegramChatMessagesEmptyTitleTextView.text = resolveChatMessagesEmptyTitle(stage)
     binding.telegramChatMessagesEmptyBodyTextView.text = resolveChatMessagesEmptyBody(stage)
 
+    // Do not overwrite live playback progress just because the screen re-rendered.
     if (messages.isEmpty() && !isSpeakingMessages) {
       binding.telegramMessageSpeechStatusTextView.text = activity.getString(
         R.string.telegram_message_speech_status_no_items,
@@ -787,6 +790,7 @@ class TelegramFeatureController(
 
     speakJob?.cancel()
     speakJob = activity.lifecycleScope.launch {
+      // Playback runs off-main, but progress/status updates stay on the UI thread.
       isSpeakingMessages = true
       updateMessageSpeechControls(latestSnapshot)
       binding.telegramMessageSpeechStatusTextView.text = activity.getString(

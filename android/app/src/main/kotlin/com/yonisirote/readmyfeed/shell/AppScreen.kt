@@ -22,6 +22,7 @@ fun resolveHomeSelectionScreen(
   provider: FeedProvider,
   hasStoredSession: Boolean,
 ): AppScreen {
+  // Home cards route to connect or content based on provider availability and session state.
   if (!provider.isAvailable) {
     return AppScreen.Home
   }

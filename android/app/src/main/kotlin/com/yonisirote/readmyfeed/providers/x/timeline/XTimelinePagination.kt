@@ -8,6 +8,7 @@ fun mergeTimelineItems(
 ): List<XTimelineItem> {
   val merged = LinkedHashMap<String, XTimelineItem>()
 
+  // Cursor-based pages can overlap, so preserve first-seen order while deduping by id.
   for (item in existingItems + incomingItems) {
     if (item.id.isBlank() || merged.containsKey(item.id)) {
       continue

@@ -16,6 +16,7 @@ data class TelegramMessageListScreenState(
 )
 
 fun resolveTelegramMessageListScreenState(snapshot: TelegramClientSnapshot): TelegramMessageListScreenState {
+  // Once messages exist, prefer showing them over swapping the screen into loading/error states.
   val stage = when {
     snapshot.selectedChatPreview == null -> TelegramMessageListStage.SELECT_CHAT
     snapshot.selectedChatMessages.isNotEmpty() -> TelegramMessageListStage.READY

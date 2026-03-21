@@ -291,6 +291,7 @@ class XFeatureController(
     cookieManager.setAcceptCookie(true)
     cookieManager.setAcceptThirdPartyCookies(binding.xWebView, true)
 
+    // X login relies on modern web storage/cookies across multiple web origins.
     binding.xWebView.settings.apply {
       javaScriptEnabled = true
       domStorageEnabled = true
@@ -306,6 +307,7 @@ class XFeatureController(
       override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
         super.onPageStarted(view, url, favicon)
 
+        // Strict capture waits for known post-login routes, then retries missing-cookie timing gaps.
         if (!captureInFlight && !didCapture && captureCoordinator.shouldCaptureOnNavigation(url)) {
           attemptCapture(strict = true)
         }
@@ -314,6 +316,7 @@ class XFeatureController(
       override fun onPageFinished(view: WebView?, url: String?) {
         super.onPageFinished(view, url)
 
+        // Fallback capture is broader because X does not always finish login on one reliable redirect.
         if (!captureInFlight && !didCapture && captureCoordinator.shouldAttemptFallbackCapture(url)) {
           attemptCapture(strict = false)
         }
@@ -362,6 +365,7 @@ class XFeatureController(
 
     activity.lifecycleScope.launch {
       if (clearExistingSession) {
+        // Clear both app and WebView state so reconnect never reuses stale browser auth.
         safeClearStoredSession()
         hasStoredSession = false
         timelineItems = emptyList()
@@ -400,6 +404,7 @@ class XFeatureController(
         val session = if (strict) {
           captureCoordinator.captureAndStoreSessionWithRetry()
         } else {
+          // Fallback capture only takes a single shot and waits for later page loads if cookies are incomplete.
           captureCoordinator.captureAndStoreSessionOnce()
         }
 
@@ -490,6 +495,7 @@ class XFeatureController(
     val message = error.message ?: activity.getString(R.string.generic_timeline_error)
     lastFeedLoadErrorMessage = message
 
+    // Certain timeline failures mean the stored browser session is no longer trustworthy.
     if (shouldClearXTimelineSession(error)) {
       safeClearStoredSession()
       hasStoredSession = false

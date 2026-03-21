@@ -29,6 +29,7 @@ internal fun buildTelegramSelectedChatPreview(
 ): TelegramChatPreview {
   return TelegramChatPreview(
     chatId = chat.id,
+    // Preserve the last known title/preview while fresher chat details are still trickling in.
     title = chat.title.orEmpty().trim().ifBlank {
       fallback?.title.orEmpty()
     },
@@ -43,6 +44,7 @@ internal fun buildTelegramSelectedChatPreview(
 
 private fun mapTelegramChatPreview(chat: TdApi.Chat): TelegramChatPreview? {
   val order = resolveMainChatOrder(chat.positions)
+  // Only surface chats that TDLib currently keeps in the main list with a real order.
   if (order <= 0L) {
     return null
   }

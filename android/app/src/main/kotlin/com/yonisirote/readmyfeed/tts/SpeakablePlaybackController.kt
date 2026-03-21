@@ -43,6 +43,7 @@ class SpeakablePlaybackController<T>(
       )
     }
 
+    // Voice availability is only reliable after the engine has finished initializing.
     ttsService.initialize()
 
     val playableItems = mutableListOf<ResolvedSpeakableEntry<T>>()
@@ -62,6 +63,7 @@ class SpeakablePlaybackController<T>(
     for ((index, candidate) in playableItems.withIndex()) {
       onItemStart?.invoke(candidate.source, index + 1, playableItems.size)
 
+      // Speak serially because the Android engine is effectively one utterance at a time.
       ttsService.speak(
         getSpeakableItemText(candidate.speakableItem),
         TtsSpeakOptions(

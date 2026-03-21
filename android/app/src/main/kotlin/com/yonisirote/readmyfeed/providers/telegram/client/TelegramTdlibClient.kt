@@ -19,6 +19,7 @@ object RealTelegramTdlibClientFactory : TelegramTdlibClientFactory {
     updateHandler: (TdApi.Object) -> Unit,
     exceptionHandler: (Throwable) -> Unit,
   ): TelegramTdlibClient {
+    // TDLib reports exceptions through both callback channels, so normalize them into one handler.
     val client = Client.create(
       Client.ResultHandler { result -> updateHandler(result) },
       Client.ExceptionHandler { error -> exceptionHandler(error) },

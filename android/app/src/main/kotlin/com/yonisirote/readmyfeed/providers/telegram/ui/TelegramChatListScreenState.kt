@@ -15,6 +15,7 @@ data class TelegramChatListScreenState(
 )
 
 fun resolveTelegramChatListScreenState(snapshot: TelegramClientSnapshot): TelegramChatListScreenState {
+  // Keep existing previews visible even while a background load or transient error is happening.
   val stage = when {
     snapshot.chatPreviews.isNotEmpty() -> TelegramChatListStage.READY
     !snapshot.chatListError?.message.isNullOrBlank() -> TelegramChatListStage.ERROR

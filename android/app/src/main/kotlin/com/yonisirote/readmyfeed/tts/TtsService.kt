@@ -48,6 +48,7 @@ class TtsService(
 
   fun hasLanguageSupport(language: String): Boolean {
     assertInitialized()
+    // "Supported" means we can resolve an installed voice we would actually choose.
     return findBestVoiceForLanguage(engine.voices(), language) != null
   }
 
@@ -56,6 +57,7 @@ class TtsService(
       return options
     }
 
+    // Upgrade language-only requests into a concrete voice to reduce device-default surprises.
     val matchedVoice = findBestVoiceForLanguage(engine.voices(), options.language)
       ?: return options
 
