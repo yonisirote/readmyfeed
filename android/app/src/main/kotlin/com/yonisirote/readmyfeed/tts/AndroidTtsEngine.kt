@@ -126,6 +126,7 @@ class AndroidTtsEngine(
     speakMutex.withLock {
       val utteranceId = UUID.randomUUID().toString()
       val completion = CompletableDeferred<Unit>()
+      // Some engines never report completion, so bound each utterance by text length.
       val timeoutMs = ttsSpeechTimeoutBaseMs + (text.length * ttsSpeechTimeoutPerCharacterMs)
 
       setActiveUtterance(ActiveUtterance(utteranceId, completion))
@@ -351,6 +352,7 @@ class AndroidTtsEngine(
   private fun finishActiveUtterance(utteranceId: String?, error: Throwable? = null) {
     val current = synchronized(activeUtteranceLock) {
       val candidate = activeUtterance
+      // Ignore stale callbacks from earlier utterances after stop/shutdown or a queued retry.
       if (candidate == null || (utteranceId != null && candidate.id != utteranceId)) {
         null
       } else {

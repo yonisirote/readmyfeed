@@ -114,6 +114,7 @@ class MainActivity : AppCompatActivity(), AppScreenHost {
       when {
         providerRegistry.handleBackPress() -> Unit
         currentScreen is AppScreen.Home -> {
+          // Temporarily step aside so Android can handle the real activity back press.
           isEnabled = false
           onBackPressedDispatcher.onBackPressed()
         }

@@ -194,6 +194,7 @@ class XTimelineParserTest {
 
   @Test
   fun findsLateBottomCursorFromTimelineInstructions() {
+    // Put the bottom cursor at the very end so reverse scanning keeps winning on large payloads.
     val tweetEntries = (0 until 200).joinToString(separator = ",") { index ->
       """
         {

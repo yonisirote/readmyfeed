@@ -10,6 +10,7 @@ class XLoginCaptureCoordinator(
   }
 
   fun shouldAttemptFallbackCapture(url: String?): Boolean {
+    // Fallback capture accepts any known X origin because post-login redirects are not consistent.
     return hasAllowedXOrigin(url)
   }
 
@@ -28,6 +29,7 @@ class XLoginCaptureCoordinator(
         return authService.captureAndStoreSession()
       } catch (error: XAuthException) {
         lastError = error
+        // WebView cookies can lag behind navigation, so only retry the missing-cookie case.
         val shouldRetry = attempt < maxAttempts && error.code == XAuthErrorCodes.COOKIE_MISSING_REQUIRED
         if (shouldRetry) {
           delay(delayMs)

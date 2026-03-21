@@ -12,6 +12,7 @@ private fun getLanguageCandidates(value: String): List<String> {
   val primary = segments.firstOrNull().orEmpty()
   val region = segments.getOrNull(1)
 
+  // Android devices still expose Hebrew as either he or the older iw tag.
   if (primary == "he" || primary == "iw") {
     return if (region.isNullOrBlank()) {
       listOf("he", "iw")
@@ -31,6 +32,7 @@ private fun getVoicePriority(voice: TtsVoice): Int {
   val identifier = voice.identifier.lowercase()
   var score = 0
 
+  // Prefer offline, richer voices and heavily penalize placeholder language stubs.
   if (identifier.contains("local")) {
     score += 4
   }

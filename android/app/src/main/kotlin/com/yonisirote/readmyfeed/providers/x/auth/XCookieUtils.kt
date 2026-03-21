@@ -33,6 +33,7 @@ fun looksLikeLoggedInUrl(url: String?): Boolean {
 
   return try {
     val parsed = URI(url)
+    // This is only a post-login capture hint, so keep it tight to known home-ish paths.
     origin == X_BASE_URL && POST_LOGIN_PATH_HINTS.any { hint -> parsed.path.orEmpty().startsWith(hint) }
   } catch (_: Exception) {
     false

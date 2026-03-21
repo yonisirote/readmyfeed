@@ -111,6 +111,7 @@ class XTimelineRequestTest {
 
   @Test
   fun extractsCt0FromCookieStringAsCSrfToken() {
+    // X echoes ct0 into the CSRF header instead of issuing a separate token.
     val request = XFollowingTimelineRequest(
       cookieString = "auth_token=abc; ct0=my-csrf-value; lang=en;",
     )

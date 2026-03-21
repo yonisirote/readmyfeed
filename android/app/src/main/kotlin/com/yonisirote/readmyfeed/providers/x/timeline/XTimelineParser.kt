@@ -60,6 +60,7 @@ private fun findByFilter(data: JsonElement, key: String, value: String): List<Js
   var visitedNodes = 0
 
   fun visit(node: JsonElement?) {
+    // X payloads can get very large, so cap the walk before defensive parsing turns expensive.
     if (node == null || visitedNodes >= MAX_FILTER_NODES || result.size >= MAX_FILTER_MATCHES) {
       return
     }
@@ -139,6 +140,7 @@ private fun extractBottomCursorFromNode(node: JsonElement?): String {
 private fun extractNextCursor(payload: JsonElement): String? {
   val instructions = getTimelineInstructions(payload)
 
+  // The newest bottom cursor usually appears near the end of the instruction list.
   for (instructionIndex in instructions.indices.reversed()) {
     val instruction = instructions[instructionIndex].jsonObjectOrNull() ?: continue
     val entries = getInstructionEntries(instruction)
@@ -155,6 +157,7 @@ private fun extractNextCursor(payload: JsonElement): String? {
 
 private fun extractTweet(timelineTweetNode: JsonObject): XTimelineItem? {
   val tweetResults = timelineTweetNode.getObject("tweet_results")
+  // X wraps tweets in a few result shapes, so normalize that before reading legacy fields.
   val result = unwrapTweetResult(tweetResults?.getObject("result")) ?: return null
   val legacy = result.getObject("legacy") ?: return null
   val id = result["rest_id"].stringValue()

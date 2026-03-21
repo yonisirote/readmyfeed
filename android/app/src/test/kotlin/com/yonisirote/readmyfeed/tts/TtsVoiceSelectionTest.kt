@@ -8,6 +8,7 @@ import org.junit.Test
 class TtsVoiceSelectionTest {
   @Test
   fun prefersLocalHebrewVoiceOverPlaceholderLanguageEntry() {
+    // Hebrew often comes back as iw-IL, and *-language voices are usually placeholder entries.
     val voices = listOf(
       TtsVoice(
         identifier = "he-il-language",

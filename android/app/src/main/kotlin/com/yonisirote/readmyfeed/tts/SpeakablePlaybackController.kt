@@ -50,6 +50,7 @@ class SpeakablePlaybackController<T>(
 
     for (candidate in candidates) {
       val language = candidate.language
+      // Skip only the unsupported item so one language gap does not abort the whole batch.
       if (!language.isNullOrBlank() && !ttsService.hasLanguageSupport(language)) {
         skippedItems += 1
         continue

@@ -8,6 +8,7 @@ import kotlinx.serialization.json.put
 private const val FOLLOWING_TIMELINE_URL =
   "https://x.com/i/api/graphql/_qO7FJzShSKYWi9gtboE6A/HomeLatestTimeline"
 
+// This is the web client's bearer token, not a per-user secret.
 private const val X_WEB_AUTH_BEARER_TOKEN =
   "AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA"
 
@@ -96,6 +97,7 @@ fun buildTimelineHeaders(cookieString: String, csrfToken: String): Map<String, S
 
 fun buildTimelineHttpRequest(request: XFollowingTimelineRequest, storedCookieString: String): XTimelineHttpRequest {
   val cookieString = request.cookieString ?: storedCookieString
+  // X expects the ct0 cookie to be echoed back as the CSRF header on API requests.
   val csrfToken = parseCookieHeader(cookieString)["ct0"].orEmpty()
 
   if (csrfToken.isBlank()) {

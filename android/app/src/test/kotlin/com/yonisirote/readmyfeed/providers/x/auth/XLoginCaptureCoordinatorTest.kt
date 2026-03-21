@@ -10,6 +10,7 @@ import org.junit.Test
 class XLoginCaptureCoordinatorTest {
   @Test
   fun retriesUntilRequiredCookiesAppear() = runBlocking {
+    // Mimics WebView cookies showing up over a few reads after navigation finishes.
     val cookieReader = SequencedCookieReader(
       listOf(
         evaluateCookies(mapOf("ct0" to "csrf")),
@@ -204,6 +205,7 @@ private class SequencedCookieReader(
   private var index = 0
 
   override fun readCookies(): XCookieReadResult {
+    // Keep returning the final snapshot so retry callers can outlive the scripted sequence.
     val safeIndex = index.coerceAtMost(results.lastIndex)
     index += 1
     return results[safeIndex]

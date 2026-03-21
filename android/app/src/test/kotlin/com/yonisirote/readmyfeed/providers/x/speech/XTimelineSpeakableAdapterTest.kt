@@ -47,6 +47,7 @@ class XTimelineSpeakableAdapterTest {
       quotedAuthorHandle = "",
     ).toSpeakableItem()
 
+    // Avoid speaking an empty attribution when X omits the quoted author.
     assertEquals("Look at this Quote. some text", speakable.text)
   }
 

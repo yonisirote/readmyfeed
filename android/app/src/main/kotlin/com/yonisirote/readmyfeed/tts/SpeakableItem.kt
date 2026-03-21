@@ -14,6 +14,7 @@ data class SpeakableItem(
 )
 
 fun getSpeakableItemLanguage(item: SpeakableItem): String? {
+  // Mixed-script posts are often mislabeled, so obvious Hebrew text wins over metadata.
   if (hebrewCharacterPattern.containsMatchIn(item.text)) {
     return "he-IL"
   }

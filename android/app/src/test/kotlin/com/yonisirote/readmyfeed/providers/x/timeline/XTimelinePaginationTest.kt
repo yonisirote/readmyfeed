@@ -160,6 +160,7 @@ class XTimelinePaginationTest {
   @Test
   fun prefetchesAtExactThreshold() {
     val loadedCount = 20
+    // currentIndex is zero-based, so the exact boundary is one slot earlier than the raw count math.
     val currentIndex = loadedCount - TIMELINE_PREFETCH_THRESHOLD - 1
 
     assertTrue(
