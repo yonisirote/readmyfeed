@@ -51,7 +51,7 @@ android/
     src/test/kotlin/       # JVM unit tests
 ```
 
-`activity_main.xml` remains the main screen composition file, while provider ownership is reflected in Kotlin packages and provider-specific row layouts such as `item_x_*` and `item_telegram_*`. See `ARCHITECTURE.md` for the package and resource boundaries.
+`activity_main.xml` remains the main screen composition file, while provider ownership is reflected in Kotlin packages and provider-specific row layouts such as `item_x_*` and `item_telegram_*`.
 
 When validating changes, run Gradle tasks sequentially in the same `android/` worktree. Avoid starting overlapping `./gradlew` commands at the same time, especially after Kotlin file or package moves.
 

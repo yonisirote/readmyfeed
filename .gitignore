@@ -42,6 +42,9 @@ android/local.properties
 google-services.json
 GoogleService-Info.plist
 
+# Code review notes
+CODE_REVIEW.md
+
 # Logs / OS noise
 npm-debug.*
 yarn-debug.*
