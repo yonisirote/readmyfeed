@@ -2,7 +2,7 @@
 
 ## Scope
 
-- This file is the primary repo instruction set for agentic coding assistants working in `/home/yoni/Workspace/readmyfeed`.
+- This file is the primary instruction set for agentic coding assistants in `/home/yoni/Workspace/readmyfeed`.
 - The active app lives in `android/`; the old Expo app on `expo-version` is reference-only.
 - No `.cursorrules`, `.cursor/rules/`, or `.github/copilot-instructions.md` exist in this repo right now.
 - If any of those files appear later, treat them as additional rules and keep this file aligned with them.
@@ -10,27 +10,24 @@
 ## Project Snapshot
 
 - `readmyfeed` is a native Android app written in Kotlin.
-- The current native X scope includes:
-  - encrypted session storage
-  - WebView-based X login and cookie capture
-  - following timeline request building, parsing, and pagination
-  - native feed rendering with `RecyclerView`
-  - screen-scoped TTS playback for loaded tweets
-- Telegram migration and background playback are still pending.
+- Native X work includes encrypted session storage, WebView login/cookie capture, timeline parsing/pagination, feed rendering, and screen-scoped TTS.
+- Telegram migration is partially complete; background playback is still pending.
+- Treat the native architecture as the source of truth; use `expo-version` only as behavior reference.
 
 ## Important Paths
 
-- `android/app/src/main/kotlin/com/yonisirote/readmyfeed/shell/MainActivity.kt`: current screen and flow coordinator.
+- `android/app/src/main/kotlin/com/yonisirote/readmyfeed/shell/MainActivity.kt`: screen and flow coordinator.
 - `android/app/src/main/kotlin/com/yonisirote/readmyfeed/shell/`: shell navigation, screen models, and activity coordination.
-- `android/app/src/main/kotlin/com/yonisirote/readmyfeed/providers/`: provider registry plus X/Telegram feature implementations.
-- `android/app/src/main/kotlin/com/yonisirote/readmyfeed/providers/x/auth/`: X auth, session, cookie, and login-capture helpers.
-- `android/app/src/main/kotlin/com/yonisirote/readmyfeed/providers/x/timeline/`: X request, parser, and pagination logic.
-- `android/tdlib/`: local TDLib Android library module with generated Java sources and a local JNI regeneration script.
-- `android/app/src/main/kotlin/com/yonisirote/readmyfeed/tts/`: shared TTS models, engine, service, and playback helpers.
+- `android/app/src/main/kotlin/com/yonisirote/readmyfeed/providers/`: provider registry plus X/Telegram implementations.
+- `android/app/src/main/kotlin/com/yonisirote/readmyfeed/providers/x/auth/`: X auth, session, cookie, and login capture.
+- `android/app/src/main/kotlin/com/yonisirote/readmyfeed/providers/x/timeline/`: X request, parsing, and pagination.
 - `android/app/src/main/kotlin/com/yonisirote/readmyfeed/providers/x/speech/`: X-specific speech adapters and playback helpers.
-- `android/app/src/main/res/layout/activity_main.xml`: current screen composition root for the app shell and provider screens.
+- `android/app/src/main/kotlin/com/yonisirote/readmyfeed/providers/telegram/`: Telegram feature implementation and TDLib integration.
+- `android/app/src/main/kotlin/com/yonisirote/readmyfeed/tts/`: shared TTS models, engine, service, and playback helpers.
+- `android/app/src/main/res/layout/activity_main.xml`: main composition root for the app shell.
 - `android/app/src/main/res/`: layouts, strings, colors, drawables, and themes.
 - `android/app/src/test/kotlin/`: JVM unit tests.
+- `android/tdlib/`: local TDLib Android module and JNI regeneration script.
 
 ## Toolchain
 
@@ -39,18 +36,18 @@
 - Java/JVM target: `17`
 - `minSdk 26`, `targetSdk 34`, `compileSdk 36`
 
-## Command Guidance
+## Working Rules
 
-- When using shell tools, prefer setting `workdir` to `android/` instead of chaining `cd`.
+- Prefer `workdir=/home/yoni/Workspace/readmyfeed/android` instead of chaining `cd` in shell commands.
 - Use the Gradle wrapper: `./gradlew`.
-- After a fresh clone, or when TDLib JNI libs are missing, run `./tdlib/regenerate.sh` from `android/` before Gradle tasks that package the app.
-- Prefer the smallest command that validates your change.
-- Do not run overlapping `./gradlew` commands in parallel against the same `android/` worktree; chain them sequentially, especially after Kotlin file or package moves.
-- After meaningful Android code or resource changes, finish with `assembleDebug`.
+- Do not run overlapping Gradle commands in the same `android/` worktree.
+- After meaningful Android code or resource changes, finish with `assembleDebug` unless a narrower verification is clearly sufficient.
+- If TDLib JNI libs are missing, run `./tdlib/regenerate.sh` before packaging tasks.
+- Preserve unrelated user changes; do not revert files you did not modify.
 
 ## Build Commands
 
-- Prepare TDLib JNI libs after a fresh clone: `./tdlib/regenerate.sh`
+- Prepare TDLib JNI libs: `./tdlib/regenerate.sh`
 - Build debug APK: `./gradlew assembleDebug`
 - Clean build outputs: `./gradlew clean`
 - Show available tasks: `./gradlew tasks`
@@ -59,20 +56,20 @@
 ## Lint Commands
 
 - Run Android lint: `./gradlew lintDebug`
-- Task help: `./gradlew help --task lintDebug`
+- Lint help: `./gradlew help --task lintDebug`
 
 ## Test Commands
 
 - Run all JVM unit tests: `./gradlew testDebugUnitTest`
-- Run one class: `./gradlew testDebugUnitTest --tests 'com.yonisirote.readmyfeed.providers.x.timeline.XTimelineParserTest'`
-- Run one method: `./gradlew testDebugUnitTest --tests 'com.yonisirote.readmyfeed.providers.x.timeline.XTimelineParserTest.parsesTimelineTweetsAndNextCursor'`
+- Run one test class: `./gradlew testDebugUnitTest --tests 'com.yonisirote.readmyfeed.providers.x.timeline.XTimelineParserTest'`
+- Run one test method: `./gradlew testDebugUnitTest --tests 'com.yonisirote.readmyfeed.providers.x.timeline.XTimelineParserTest.parsesTimelineTweetsAndNextCursor'`
 - Run a package slice: `./gradlew testDebugUnitTest --tests 'com.yonisirote.readmyfeed.tts.*'`
 - Run multiple filters: `./gradlew testDebugUnitTest --tests 'com.yonisirote.readmyfeed.providers.x.auth.*' --tests 'com.yonisirote.readmyfeed.providers.x.speech.*'`
 - Re-run cached tests: `./gradlew testDebugUnitTest --rerun`
 - Stop on first failure: `./gradlew testDebugUnitTest --fail-fast`
-- Task help: `./gradlew help --task testDebugUnitTest`
+- Test task help: `./gradlew help --task testDebugUnitTest`
 
-## Useful Current Test Targets
+## Useful Test Targets
 
 - `com.yonisirote.readmyfeed.providers.x.timeline.XTimelineParserTest`
 - `com.yonisirote.readmyfeed.providers.x.timeline.XTimelinePaginationTest`
@@ -80,25 +77,28 @@
 - `com.yonisirote.readmyfeed.providers.x.auth.XLoginCaptureCoordinatorTest`
 - `com.yonisirote.readmyfeed.tts.TtsServiceTest`
 - `com.yonisirote.readmyfeed.providers.x.speech.XTimelineSpeechPlayerTest`
+- `com.yonisirote.readmyfeed.providers.telegram.client.TelegramClientManagerTest`
 
 ## Expected Verification Flow
 
 - Parser, auth, pagination, or TTS helper change: run the narrowest `testDebugUnitTest --tests ...` command.
 - UI, layout, activity, or resource change: run the narrowest relevant tests, then `assembleDebug`.
+- Lint-sensitive changes: run the narrowest relevant tests and `lintDebug` if the change touches shared UI or resource code.
 - If you cannot run a check, say so clearly in the final message.
 
 ## Kotlin Style
 
 - Use Kotlin for all app logic.
-- Use 2-space indentation, matching the existing codebase.
+- Use 2-space indentation.
 - Wrap long argument lists instead of cramming them onto one line.
-- Use trailing commas in multiline declarations and calls when it improves diffs and matches the surrounding file.
+- Use trailing commas in multiline declarations and calls when they improve diffs.
 - Prefer `val` over `var`.
 - Give public functions and non-trivial top-level helpers explicit return types.
 - Prefer data classes for immutable models and plain classes for stateful services.
 - Prefer top-level functions for stateless helpers and parsing utilities.
 - Avoid wildcard imports.
 - Let Kotlin/IDE default import ordering win.
+- Keep comments rare and only add them for non-obvious code.
 
 ## Naming
 
@@ -112,14 +112,15 @@
 ## Architecture Conventions
 
 - Keep Android framework code thin.
-- UI classes should coordinate views, lifecycle, and user actions; move parsing, network, auth, and speech logic into focused classes.
+- UI classes should coordinate views, lifecycle, and user actions.
+- Move parsing, network, auth, and speech logic into focused classes.
 - Keep X auth and session concerns in `x/auth`.
 - Keep X request, parsing, and pagination concerns in `x/timeline`.
 - Keep shared speech logic in `tts` and platform-specific speech adapters in `x/speech`.
 - Prefer composition and mapping adapters over inheritance across services.
 - Do not pass raw JSON outside the timeline parsing boundary.
 - Treat X payloads as unstable and untrusted; parse defensively and cap traversal work.
-- Screen-scoped TTS is the current design. Do not expand it into background playback unless the task explicitly calls for it.
+- Screen-scoped TTS is the current design; do not expand it into background playback unless the task explicitly calls for it.
 
 ## Types and Nullability
 

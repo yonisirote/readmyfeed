@@ -1,102 +1,76 @@
 package com.yonisirote.readmyfeed.providers.x.ui
 
-import android.annotation.SuppressLint
-import android.graphics.Bitmap
-import android.webkit.CookieManager
-import android.webkit.WebResourceError
-import android.webkit.WebResourceRequest
-import android.webkit.WebSettings
-import android.webkit.WebView
-import android.webkit.WebViewClient
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.isVisible
-import androidx.lifecycle.lifecycleScope
-import androidx.recyclerview.widget.LinearLayoutManager
-import androidx.recyclerview.widget.RecyclerView
+import com.yonisirote.readmyfeed.R
+import com.yonisirote.readmyfeed.databinding.ActivityMainBinding
+import com.yonisirote.readmyfeed.providers.FeedProvider
+import com.yonisirote.readmyfeed.providers.ProviderFeatureController
+import com.yonisirote.readmyfeed.providers.x.auth.XAuthException
 import com.yonisirote.readmyfeed.shell.AppScreen
 import com.yonisirote.readmyfeed.shell.AppScreenHost
-import com.yonisirote.readmyfeed.providers.x.ui.ContentListSummaryState
-import com.yonisirote.readmyfeed.providers.FeedProvider
 import com.yonisirote.readmyfeed.shell.ProviderDestination
-import com.yonisirote.readmyfeed.providers.ProviderFeatureController
-import com.yonisirote.readmyfeed.R
-import com.yonisirote.readmyfeed.providers.x.ui.canLoadMoreContent
-import com.yonisirote.readmyfeed.databinding.ActivityMainBinding
 import com.yonisirote.readmyfeed.shell.matchesProvider
 import com.yonisirote.readmyfeed.shell.matchesProviderDestination
-import com.yonisirote.readmyfeed.providers.x.ui.resolveContentListSummaryModel
 import com.yonisirote.readmyfeed.shell.resolveHomeSelectionScreen
-import com.yonisirote.readmyfeed.providers.x.ui.shouldEnableLoadMoreContentButton
-import com.yonisirote.readmyfeed.providers.x.ui.shouldShowLoadMoreContentButton
-import com.yonisirote.readmyfeed.tts.AndroidTtsEngine
-import com.yonisirote.readmyfeed.tts.TtsException
-import com.yonisirote.readmyfeed.tts.TtsService
-import com.yonisirote.readmyfeed.providers.x.auth.AndroidWebViewCookieReader
-import com.yonisirote.readmyfeed.providers.x.auth.PreferencesXSessionStore
-import com.yonisirote.readmyfeed.providers.x.auth.XAuthErrorCodes
-import com.yonisirote.readmyfeed.providers.x.auth.XAuthException
-import com.yonisirote.readmyfeed.providers.x.auth.XAuthService
-import com.yonisirote.readmyfeed.providers.x.auth.XLoginCaptureCoordinator
-import com.yonisirote.readmyfeed.providers.x.auth.X_LOGIN_URL
-import com.yonisirote.readmyfeed.providers.x.auth.clearXWebViewCookies
-import com.yonisirote.readmyfeed.providers.x.speech.XTimelineSpeechPlayer
-import com.yonisirote.readmyfeed.providers.x.timeline.XFollowingTimelineBatch
-import com.yonisirote.readmyfeed.providers.x.timeline.XFollowingTimelineRequest
-import com.yonisirote.readmyfeed.providers.x.timeline.XTimelineException
-import com.yonisirote.readmyfeed.providers.x.timeline.XTimelineItem
-import com.yonisirote.readmyfeed.providers.x.timeline.XTimelineService
-import com.yonisirote.readmyfeed.providers.x.timeline.mergeTimelineItems
-import com.yonisirote.readmyfeed.providers.x.timeline.shouldClearXTimelineSession
-import com.yonisirote.readmyfeed.providers.x.timeline.shouldPrefetchTimeline
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
-class XFeatureController(
+internal class XFeatureController(
   private val activity: AppCompatActivity,
   private val binding: ActivityMainBinding,
   private val screenHost: AppScreenHost,
+  private val dependenciesFactory: (AppCompatActivity) -> XFeatureDependencies = ::createXFeatureDependencies,
 ) : ProviderFeatureController {
 
-  private lateinit var authService: XAuthService
-  private lateinit var captureCoordinator: XLoginCaptureCoordinator
-  private lateinit var timelineService: XTimelineService
-  private lateinit var ttsService: TtsService
-  private lateinit var timelineSpeechPlayer: XTimelineSpeechPlayer
-  private lateinit var feedAdapter: XTimelineFeedAdapter
+  private lateinit var signInController: XSignInScreenController
+  private lateinit var timelineController: XTimelineScreenController
 
-  private var timelineItems: List<XTimelineItem> = emptyList()
-  private var nextCursor: String? = null
   private var hasStoredSession = false
-  private var captureInFlight = false
-  private var didCapture = false
-  private var isFetchingInitial = false
-  private var isFetchingMore = false
-  private var isSpeakingFeed = false
-  private var lastFeedLoadErrorMessage: String? = null
-  private var captureJob: Job? = null
-  private var fetchJob: Job? = null
-  private var speakJob: Job? = null
   private var currentScreen: AppScreen = AppScreen.Home
   private var isInitialized = false
 
   override val provider: FeedProvider = FeedProvider.X
 
   override fun initialize(): Boolean {
-    if (!initializeDependencies()) {
-      return false
-    }
+    return try {
+      val dependencies = dependenciesFactory(activity)
 
-    setupRecyclerView()
-    setupSignInScreen()
-    setupFeedScreen()
-    setupWebView()
-    maybeLoadStoredSession()
-    isInitialized = true
-    return true
+      signInController = XSignInScreenController(
+        activity = activity,
+        binding = binding,
+        authService = dependencies.authService,
+        captureCoordinator = dependencies.captureCoordinator,
+        showHome = { screenHost.showScreen(AppScreen.Home) },
+        showProviderScreen = ::showProviderScreen,
+        onSessionCaptured = ::handleCapturedSession,
+      )
+      timelineController = XTimelineScreenController(
+        activity = activity,
+        binding = binding,
+        timelineService = dependencies.timelineService,
+        timelineSpeechPlayer = dependencies.timelineSpeechPlayer,
+        feedAdapter = dependencies.feedAdapter,
+        isContentListVisible = { isOnProviderDestination(ProviderDestination.CONTENT_LIST) },
+        showProviderScreen = ::showProviderScreen,
+        showHome = { screenHost.showScreen(AppScreen.Home) },
+        requestLogin = { startLoginFlow(clearExistingSession = false) },
+        clearStoredSession = { signInController.clearStoredSession() },
+        onSessionAvailabilityChanged = ::updateStoredSessionAvailability,
+      )
+
+      signInController.initialize()
+      timelineController.initialize()
+      updateStoredSessionAvailability(signInController.loadStoredSessionAvailability())
+      isInitialized = true
+      true
+    } catch (error: XAuthException) {
+      Toast.makeText(
+        activity,
+        error.message ?: activity.getString(R.string.generic_auth_error),
+        Toast.LENGTH_LONG,
+      ).show()
+      false
+    }
   }
 
   override fun supports(screen: AppScreen): Boolean {
@@ -115,15 +89,12 @@ class XFeatureController(
     }
 
     currentScreen = if (supports(screen)) screen else AppScreen.Home
-    binding.xSignInScreen.isVisible = currentScreen.matchesProviderDestination(
-      provider = provider,
-      destination = ProviderDestination.CONNECT,
-    )
-    binding.feedScreen.isVisible = currentScreen.matchesProviderDestination(
-      provider = provider,
-      destination = ProviderDestination.CONTENT_LIST,
-    )
-    binding.loadingOverlay.isVisible = false
+    val showsSignIn = isOnProviderDestination(ProviderDestination.CONNECT)
+    val showsTimeline = isOnProviderDestination(ProviderDestination.CONTENT_LIST)
+
+    binding.xSignInScreen.isVisible = showsSignIn
+    binding.feedScreen.isVisible = showsTimeline
+    timelineController.render(isVisible = showsTimeline)
   }
 
   override fun openFromHome() {
@@ -145,7 +116,7 @@ class XFeatureController(
           }
           targetScreen.matchesProvider(provider, ProviderDestination.CONTENT_LIST) -> {
             screenHost.showScreen(targetScreen)
-            fetchFollowingTimeline(append = false)
+            timelineController.fetchFollowingTimeline(append = false)
           }
         }
       }
@@ -158,25 +129,8 @@ class XFeatureController(
     }
 
     return when {
-      isOnProviderDestination(ProviderDestination.CONNECT) -> {
-        if (binding.xWebView.canGoBack()) {
-          binding.xWebView.goBack()
-        } else {
-          binding.xWebView.stopLoading()
-          captureJob?.cancel()
-          captureInFlight = false
-          didCapture = false
-          screenHost.showScreen(AppScreen.Home)
-        }
-        true
-      }
-      isOnProviderDestination(ProviderDestination.CONTENT_LIST) -> {
-        if (!isBusy()) {
-          stopFeedPlayback(null)
-          screenHost.showScreen(AppScreen.Home)
-        }
-        true
-      }
+      isOnProviderDestination(ProviderDestination.CONNECT) -> signInController.handleBackPress()
+      isOnProviderDestination(ProviderDestination.CONTENT_LIST) -> timelineController.handleBackPress()
       else -> false
     }
   }
@@ -186,508 +140,33 @@ class XFeatureController(
       return
     }
 
-    captureJob?.cancel()
-    fetchJob?.cancel()
-    speakJob?.cancel()
-    timelineSpeechPlayer.stop()
-    timelineSpeechPlayer.shutdown()
-    binding.feedRecyclerView.adapter = null
-    binding.xWebView.stopLoading()
-    binding.xWebView.destroy()
-  }
-
-  private fun initializeDependencies(): Boolean {
-    return try {
-      val cookieReader = AndroidWebViewCookieReader()
-      val sessionStore = PreferencesXSessionStore(activity.applicationContext)
-      authService = XAuthService(cookieReader, sessionStore)
-      captureCoordinator = XLoginCaptureCoordinator(authService)
-      timelineService = XTimelineService(authService)
-      ttsService = TtsService(AndroidTtsEngine(activity.applicationContext))
-      timelineSpeechPlayer = XTimelineSpeechPlayer(ttsService)
-      feedAdapter = XTimelineFeedAdapter()
-      true
-    } catch (error: XAuthException) {
-      Toast.makeText(
-        activity,
-        error.message ?: activity.getString(R.string.generic_auth_error),
-        Toast.LENGTH_LONG,
-      ).show()
-      false
-    }
-  }
-
-  private fun setupSignInScreen() {
-    binding.backFromSignIn.setOnClickListener {
-      binding.xWebView.stopLoading()
-      captureJob?.cancel()
-      captureInFlight = false
-      didCapture = false
-      screenHost.showScreen(AppScreen.Home)
-    }
-  }
-
-  private fun setupFeedScreen() {
-    binding.backFromFeed.setOnClickListener {
-      if (isBusy()) {
-        return@setOnClickListener
-      }
-      stopFeedPlayback(null)
-      screenHost.showScreen(AppScreen.Home)
-    }
-
-    binding.refreshButton.setOnClickListener {
-      if (isBusy()) {
-        return@setOnClickListener
-      }
-      if (!hasStoredSession) {
-        startLoginFlow(clearExistingSession = false)
-        return@setOnClickListener
-      }
-      fetchFollowingTimeline(append = false)
-    }
-
-    binding.loadMoreButton.setOnClickListener {
-      if (isBusy()) {
-        return@setOnClickListener
-      }
-      fetchFollowingTimeline(append = true)
-    }
-
-    binding.playFeedButton.setOnClickListener {
-      if (isBusy() || isSpeakingFeed) {
-        return@setOnClickListener
-      }
-      startFeedPlayback()
-    }
-
-    binding.stopFeedButton.setOnClickListener {
-      stopFeedPlayback(activity.getString(R.string.feed_speech_status_stopped))
-    }
-  }
-
-  private fun setupRecyclerView() {
-    val layoutManager = LinearLayoutManager(activity)
-    binding.feedRecyclerView.layoutManager = layoutManager
-    binding.feedRecyclerView.adapter = feedAdapter
-    binding.feedRecyclerView.addOnScrollListener(object : RecyclerView.OnScrollListener() {
-      override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
-        super.onScrolled(recyclerView, dx, dy)
-        if (dy <= 0 || !canLoadMoreContent(hasStoredSession, nextCursor, isFetchingInitial, isFetchingMore)) {
-          return
-        }
-
-        val lastVisibleItem = layoutManager.findLastVisibleItemPosition()
-        if (shouldPrefetchTimeline(lastVisibleItem, timelineItems.size, nextCursor, isFetchingMore)) {
-          fetchFollowingTimeline(append = true)
-        }
-      }
-    })
-  }
-
-  @SuppressLint("SetJavaScriptEnabled")
-  private fun setupWebView() {
-    val cookieManager = CookieManager.getInstance()
-    cookieManager.setAcceptCookie(true)
-    cookieManager.setAcceptThirdPartyCookies(binding.xWebView, true)
-
-    // X login relies on modern web storage/cookies across multiple web origins.
-    binding.xWebView.settings.apply {
-      javaScriptEnabled = true
-      domStorageEnabled = true
-      cacheMode = WebSettings.LOAD_DEFAULT
-      loadsImagesAutomatically = true
-      mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
-      setSupportMultipleWindows(false)
-    }
-
-    binding.xWebView.isVerticalScrollBarEnabled = false
-    binding.xWebView.isHorizontalScrollBarEnabled = false
-    binding.xWebView.webViewClient = object : WebViewClient() {
-      override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
-        super.onPageStarted(view, url, favicon)
-
-        // Strict capture waits for known post-login routes, then retries missing-cookie timing gaps.
-        if (!captureInFlight && !didCapture && captureCoordinator.shouldCaptureOnNavigation(url)) {
-          attemptCapture(strict = true)
-        }
-      }
-
-      override fun onPageFinished(view: WebView?, url: String?) {
-        super.onPageFinished(view, url)
-
-        // Fallback capture is broader because X does not always finish login on one reliable redirect.
-        if (!captureInFlight && !didCapture && captureCoordinator.shouldAttemptFallbackCapture(url)) {
-          attemptCapture(strict = false)
-        }
-      }
-
-      override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
-        return false
-      }
-
-      override fun onReceivedError(
-        view: WebView?,
-        request: WebResourceRequest?,
-        error: WebResourceError?,
-      ) {
-        super.onReceivedError(view, request, error)
-        if (request?.isForMainFrame == false) {
-          return
-        }
-
-        showSignInError(
-          error?.description?.toString().orEmpty().ifBlank {
-            activity.getString(R.string.generic_auth_error)
-          },
-        )
-      }
-    }
-  }
-
-  private fun maybeLoadStoredSession() {
-    val storedSession = safeLoadStoredSession() ?: run {
-      hasStoredSession = false
-      return
-    }
-
-    hasStoredSession = storedSession.isNotBlank()
+    timelineController.onDestroy()
+    signInController.onDestroy()
   }
 
   private fun startLoginFlow(clearExistingSession: Boolean) {
-    captureJob?.cancel()
-    fetchJob?.cancel()
-    stopFeedPlayback(null)
-    isFetchingInitial = false
-    isFetchingMore = false
-    captureInFlight = false
-    didCapture = false
-
-    activity.lifecycleScope.launch {
-      if (clearExistingSession) {
-        // Clear both app and WebView state so reconnect never reuses stale browser auth.
-        safeClearStoredSession()
-        hasStoredSession = false
-        timelineItems = emptyList()
-        nextCursor = null
-        lastFeedLoadErrorMessage = null
-        feedAdapter.submitList(emptyList())
-        binding.speechStatusTextView.text = activity.getString(R.string.feed_speech_status_idle)
-        clearXWebViewCookies()
-      }
-
-      showProviderScreen(ProviderDestination.CONNECT)
-      hideSignInStatus()
-      binding.xWebView.stopLoading()
-      if (clearExistingSession) {
-        binding.xWebView.clearHistory()
-        binding.xWebView.clearCache(true)
-      }
-      binding.xWebView.loadUrl(X_LOGIN_URL)
-    }
-  }
-
-  private fun attemptCapture(strict: Boolean) {
-    if (captureInFlight || didCapture) {
+    if (!isInitialized) {
       return
     }
 
-    captureJob?.cancel()
-    captureJob = activity.lifecycleScope.launch {
-      captureInFlight = true
-
-      if (strict) {
-        showSignInStatus(activity.getString(R.string.status_capturing_body))
-      }
-
-      try {
-        val session = if (strict) {
-          captureCoordinator.captureAndStoreSessionWithRetry()
-        } else {
-          // Fallback capture only takes a single shot and waits for later page loads if cookies are incomplete.
-          captureCoordinator.captureAndStoreSessionOnce()
-        }
-
-        hasStoredSession = true
-        didCapture = true
-        showProviderScreen(ProviderDestination.CONTENT_LIST)
-        fetchFollowingTimeline(initialCookieString = session.cookieString, append = false)
-      } catch (error: XAuthException) {
-        if (!strict && error.code == XAuthErrorCodes.COOKIE_MISSING_REQUIRED) {
-          return@launch
-        }
-
-        showSignInError(error.message ?: activity.getString(R.string.generic_auth_error))
-      } finally {
-        captureInFlight = false
-      }
+    timelineController.prepareForLoginFlow(clearExistingSession)
+    if (clearExistingSession) {
+      updateStoredSessionAvailability(false)
     }
+    signInController.startLoginFlow(clearExistingSession)
   }
 
-  private fun fetchFollowingTimeline(
-    initialCookieString: String? = null,
-    append: Boolean,
-  ) {
-    if (append) {
-      if (!canLoadMoreContent(hasStoredSession, nextCursor, isFetchingInitial, isFetchingMore)) {
-        return
-      }
-      isFetchingMore = true
-    } else {
-      fetchJob?.cancel()
-      isFetchingInitial = true
-      lastFeedLoadErrorMessage = null
-      if (isOnProviderDestination(ProviderDestination.CONTENT_LIST)) {
-        binding.loadingOverlay.isVisible = timelineItems.isEmpty()
-        binding.loadingTextView.text = activity.getString(R.string.loading_feed)
-      }
-    }
-
-    updateFeedControls()
-
-    val request = XFollowingTimelineRequest(
-      cursor = if (append) nextCursor else null,
-      cookieString = initialCookieString,
+  private fun handleCapturedSession(cookieString: String) {
+    updateStoredSessionAvailability(true)
+    timelineController.fetchFollowingTimeline(
+      initialCookieString = cookieString,
+      append = false,
     )
-
-    fetchJob = activity.lifecycleScope.launch {
-      try {
-        val batch = timelineService.fetchFollowingTimeline(request)
-        applyTimelineBatch(batch, append)
-      } catch (error: XTimelineException) {
-        handleTimelineError(error)
-      } catch (error: CancellationException) {
-        throw error
-      } catch (_: Exception) {
-        handleUnexpectedTimelineError()
-      } finally {
-        isFetchingInitial = false
-        isFetchingMore = false
-        binding.loadingOverlay.isVisible = false
-        updateFeedControls()
-      }
-    }
   }
 
-  private fun applyTimelineBatch(batch: XFollowingTimelineBatch, append: Boolean) {
-    nextCursor = batch.nextCursor
-    lastFeedLoadErrorMessage = null
-    timelineItems = if (append) {
-      mergeTimelineItems(timelineItems, batch.items)
-    } else {
-      mergeTimelineItems(emptyList(), batch.items)
-    }
-
-    feedAdapter.submitList(timelineItems)
-
-    if (!isOnProviderDestination(ProviderDestination.CONTENT_LIST)) {
-      showProviderScreen(ProviderDestination.CONTENT_LIST)
-    }
-
-    if (timelineItems.isEmpty()) {
-      binding.speechStatusTextView.text = activity.getString(R.string.feed_speech_status_no_items)
-    } else if (!isSpeakingFeed) {
-      binding.speechStatusTextView.text = activity.getString(R.string.feed_speech_status_idle)
-    }
-  }
-
-  private fun handleTimelineError(error: XTimelineException) {
-    val message = error.message ?: activity.getString(R.string.generic_timeline_error)
-    lastFeedLoadErrorMessage = message
-
-    // Certain timeline failures mean the stored browser session is no longer trustworthy.
-    if (shouldClearXTimelineSession(error)) {
-      safeClearStoredSession()
-      hasStoredSession = false
-      didCapture = false
-      nextCursor = null
-    }
-
-    showFeedError(message)
-  }
-
-  private fun handleUnexpectedTimelineError() {
-    val message = activity.getString(R.string.generic_timeline_error)
-    lastFeedLoadErrorMessage = message
-    showFeedError(message)
-  }
-
-  private fun updateFeedControls() {
-    val busy = isBusy()
-
-    binding.refreshButton.isEnabled = !busy && hasStoredSession
-
-    binding.loadMoreButton.isVisible = shouldShowLoadMoreContentButton(
-      isConnected = hasStoredSession,
-      nextPageToken = nextCursor,
-      isFetchingMore = isFetchingMore,
-    )
-    binding.loadMoreButton.isEnabled = shouldEnableLoadMoreContentButton(
-      isConnected = hasStoredSession,
-      nextPageToken = nextCursor,
-      isBusy = busy,
-    )
-    binding.loadMoreProgressRow.isVisible = isFetchingMore
-
-    updateFeedSummary()
-    updateSpeechControls()
-  }
-
-  private fun updateFeedSummary() {
-    val summary = resolveContentListSummaryModel(
-      itemCount = timelineItems.size,
-      isConnected = hasStoredSession,
-      nextPageToken = nextCursor,
-      isFetchingInitial = isFetchingInitial,
-      isFetchingMore = isFetchingMore,
-      lastLoadErrorMessage = lastFeedLoadErrorMessage,
-    )
-
-    binding.feedSummaryTextView.text = when (summary.state) {
-      ContentListSummaryState.FETCHING -> activity.getString(R.string.feed_summary_fetching)
-      ContentListSummaryState.EMPTY -> activity.getString(R.string.empty_feed_body)
-      ContentListSummaryState.ERROR -> summary.errorMessage ?: activity.getString(R.string.generic_timeline_error)
-      ContentListSummaryState.RECONNECT -> activity.getString(R.string.feed_summary_reconnect, timelineItems.size)
-      ContentListSummaryState.LOADING_MORE -> activity.getString(R.string.feed_summary_loading_more, timelineItems.size)
-      ContentListSummaryState.READY_MORE -> activity.getString(R.string.feed_summary_ready_more, timelineItems.size)
-      ContentListSummaryState.READY_END -> activity.getString(R.string.feed_summary_ready_end, timelineItems.size)
-    }
-  }
-
-  private fun updateSpeechControls() {
-    val canPlay = isOnProviderDestination(ProviderDestination.CONTENT_LIST) &&
-      timelineItems.isNotEmpty() &&
-      !isBusy() &&
-      !isSpeakingFeed
-
-    binding.playFeedButton.isEnabled = canPlay
-    binding.stopFeedButton.isEnabled = isSpeakingFeed
-  }
-
-  private fun startFeedPlayback() {
-    if (!timelineSpeechPlayer.hasSpeakableItems(timelineItems)) {
-      binding.speechStatusTextView.text = activity.getString(R.string.feed_speech_status_no_items)
-      updateSpeechControls()
-      return
-    }
-
-    speakJob?.cancel()
-    speakJob = activity.lifecycleScope.launch {
-      isSpeakingFeed = true
-      updateSpeechControls()
-      binding.speechStatusTextView.text = activity.getString(R.string.feed_speech_status_loading)
-
-      try {
-        val summary = withContext(Dispatchers.IO) {
-          timelineSpeechPlayer.speak(timelineItems) { _, index, total ->
-            activity.runOnUiThread {
-              if (isSpeakingFeed) {
-                binding.speechStatusTextView.text = activity.getString(
-                  R.string.feed_speech_status_playing,
-                  index,
-                  total,
-                )
-              }
-            }
-          }
-        }
-
-        if (!isSpeakingFeed) {
-          return@launch
-        }
-
-        binding.speechStatusTextView.text = when {
-          summary.spokenItems <= 0 -> activity.getString(R.string.feed_speech_status_no_items)
-          summary.skippedItems > 0 -> activity.getString(
-            R.string.feed_speech_status_skipped,
-            summary.spokenItems,
-            summary.skippedItems,
-          )
-          else -> activity.getString(R.string.feed_speech_status_done, summary.spokenItems)
-        }
-      } catch (error: CancellationException) {
-        throw error
-      } catch (error: Exception) {
-        if (isSpeakingFeed) {
-          val message = if (error is TtsException) {
-            error.message
-          } else {
-            error.message ?: "Unknown error."
-          }
-          binding.speechStatusTextView.text = buildFeedSpeechErrorMessage(message)
-        }
-      } finally {
-        isSpeakingFeed = false
-        speakJob = null
-        updateSpeechControls()
-      }
-    }
-  }
-
-  private fun stopFeedPlayback(status: String?) {
-    speakJob?.cancel()
-    speakJob = null
-    timelineSpeechPlayer.stop()
-    isSpeakingFeed = false
-    updateSpeechControls()
-
-    if (status != null) {
-      binding.speechStatusTextView.text = status
-    }
-  }
-
-  private fun showSignInStatus(text: String) {
-    binding.signInStatusBar.isVisible = true
-    binding.signInProgressBar.isVisible = true
-    binding.signInStatusText.text = text
-    binding.signInStatusText.setTextColor(activity.getColor(R.color.textSecondary))
-  }
-
-  private fun hideSignInStatus() {
-    binding.signInStatusBar.isVisible = false
-  }
-
-  private fun showSignInError(message: String) {
-    binding.signInStatusBar.isVisible = true
-    binding.signInProgressBar.isVisible = false
-    binding.signInStatusText.text = message
-    binding.signInStatusText.setTextColor(activity.getColor(R.color.error))
-  }
-
-  private fun showFeedError(message: String) {
-    stopFeedPlayback(null)
-    if (isOnProviderDestination(ProviderDestination.CONTENT_LIST)) {
-      Toast.makeText(activity, message, Toast.LENGTH_LONG).show()
-    } else {
-      showProviderScreen(ProviderDestination.CONTENT_LIST)
-      Toast.makeText(activity, message, Toast.LENGTH_LONG).show()
-    }
-    binding.speechStatusTextView.text = buildFeedSpeechErrorMessage(message)
-  }
-
-  private fun safeLoadStoredSession(): String? {
-    return try {
-      authService.loadStoredSession()
-    } catch (error: XAuthException) {
-      Toast.makeText(
-        activity,
-        error.message ?: activity.getString(R.string.generic_auth_error),
-        Toast.LENGTH_LONG,
-      ).show()
-      null
-    }
-  }
-
-  private fun safeClearStoredSession() {
-    try {
-      authService.clearStoredSession()
-    } catch (error: XAuthException) {
-      Toast.makeText(
-        activity,
-        error.message ?: activity.getString(R.string.generic_auth_error),
-        Toast.LENGTH_LONG,
-      ).show()
-    }
+  private fun updateStoredSessionAvailability(value: Boolean) {
+    hasStoredSession = value
+    timelineController.setHasStoredSession(value)
   }
 
   private fun isOnProviderDestination(destination: ProviderDestination): Boolean {
@@ -704,13 +183,5 @@ class XFeatureController(
         destination = destination,
       ),
     )
-  }
-
-  private fun isBusy(): Boolean {
-    return captureInFlight || isFetchingInitial || isFetchingMore
-  }
-
-  private fun buildFeedSpeechErrorMessage(message: String?): String {
-    return activity.getString(R.string.feed_speech_status_error_prefix) + " " + (message ?: "Unknown error.")
   }
 }
