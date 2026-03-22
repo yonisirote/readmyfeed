@@ -1,1 +1,3 @@
 src/main/jniLibs/**/libtdjni.so
+src/main/java/org/drinkless/tdlib/Client.java
+src/main/java/org/drinkless/tdlib/TdApi.java
