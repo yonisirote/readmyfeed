@@ -18,9 +18,7 @@ import com.yonisirote.readmyfeed.providers.telegram.client.createTelegramClientM
 import com.yonisirote.readmyfeed.providers.telegram.speech.TelegramMessageSpeechPlayer
 import com.yonisirote.readmyfeed.shell.AppScreen
 import com.yonisirote.readmyfeed.shell.AppScreenHost
-import com.yonisirote.readmyfeed.shell.ProviderDestination
-import com.yonisirote.readmyfeed.shell.matchesProvider
-import com.yonisirote.readmyfeed.shell.matchesProviderDestination
+import com.yonisirote.readmyfeed.shell.TelegramDestination
 import com.yonisirote.readmyfeed.shell.resolveHomeSelectionScreen
 import com.yonisirote.readmyfeed.tts.AndroidTtsEngine
 import com.yonisirote.readmyfeed.tts.TtsService
@@ -89,7 +87,7 @@ class TelegramFeatureController(
         binding = binding,
         messageListAdapter = dependencies.messageListAdapter,
         messageSpeechPlayer = dependencies.messageSpeechPlayer,
-        isChatMessagesVisible = { isOnProviderDestination(ProviderDestination.CHAT_MESSAGES) },
+        isChatMessagesVisible = { isOnDestination(TelegramDestination.CHAT_MESSAGES) },
         onBackToChatList = ::returnToChatList,
         onRequestMessagesLoad = ::requestSelectedChatMessagesLoad,
       )
@@ -107,9 +105,7 @@ class TelegramFeatureController(
   }
 
   override fun supports(screen: AppScreen): Boolean {
-    return screen.matchesProviderDestination(provider, ProviderDestination.CONNECT) ||
-      screen.matchesProviderDestination(provider, ProviderDestination.CHAT_LIST) ||
-      screen.matchesProviderDestination(provider, ProviderDestination.CHAT_MESSAGES)
+    return screen is AppScreen.TelegramScreen
   }
 
   override fun render(screen: AppScreen) {
@@ -117,10 +113,10 @@ class TelegramFeatureController(
       return
     }
 
-    currentScreen = if (supports(screen)) screen else AppScreen.Home
-    binding.telegramConnectScreen.isVisible = isOnProviderDestination(ProviderDestination.CONNECT)
-    binding.telegramChatListScreen.isVisible = isOnProviderDestination(ProviderDestination.CHAT_LIST)
-    binding.telegramChatMessagesScreen.isVisible = isOnProviderDestination(ProviderDestination.CHAT_MESSAGES)
+    currentScreen = screen
+    binding.telegramConnectScreen.isVisible = isOnDestination(TelegramDestination.CONNECT)
+    binding.telegramChatListScreen.isVisible = isOnDestination(TelegramDestination.CHAT_LIST)
+    binding.telegramChatMessagesScreen.isVisible = isOnDestination(TelegramDestination.CHAT_MESSAGES)
 
     connectScreenController.render(latestSnapshot)
     chatListScreenController.render(latestSnapshot)
@@ -133,28 +129,26 @@ class TelegramFeatureController(
     }
 
     val hasConnectedSession = latestSnapshot.authState is TelegramAuthState.Ready
-    val targetScreen = resolveHomeSelectionScreen(
-      provider = provider,
-      hasStoredSession = hasConnectedSession,
-    )
 
-    when (targetScreen) {
+    when (val targetScreen = resolveHomeSelectionScreen(provider, hasConnectedSession)) {
       AppScreen.Home -> screenHost.showScreen(AppScreen.Home)
-      is AppScreen.ProviderScreen -> {
-        when {
-          targetScreen.matchesProvider(provider, ProviderDestination.CONNECT) -> {
+      is AppScreen.TelegramScreen -> {
+        when (targetScreen.destination) {
+          TelegramDestination.CONNECT -> {
             resetMessageSelection()
             ensureClientStarted()
-            showProviderScreen(ProviderDestination.CONNECT)
+            showProviderScreen(TelegramDestination.CONNECT)
           }
-          targetScreen.matchesProvider(provider, ProviderDestination.CHAT_LIST) -> {
+          TelegramDestination.CHAT_LIST -> {
             resetMessageSelection()
             ensureClientStarted()
-            showProviderScreen(ProviderDestination.CHAT_LIST)
+            showProviderScreen(TelegramDestination.CHAT_LIST)
             requestChatListLoad()
           }
+          TelegramDestination.CHAT_MESSAGES -> Unit
         }
       }
+      is AppScreen.XScreen -> Unit
     }
   }
 
@@ -164,15 +158,15 @@ class TelegramFeatureController(
     }
 
     return when {
-      isOnProviderDestination(ProviderDestination.CONNECT) -> {
+      isOnDestination(TelegramDestination.CONNECT) -> {
         screenHost.showScreen(AppScreen.Home)
         true
       }
-      isOnProviderDestination(ProviderDestination.CHAT_MESSAGES) -> {
+      isOnDestination(TelegramDestination.CHAT_MESSAGES) -> {
         returnToChatList()
         true
       }
-      isOnProviderDestination(ProviderDestination.CHAT_LIST) -> {
+      isOnDestination(TelegramDestination.CHAT_LIST) -> {
         resetMessageSelection()
         screenHost.showScreen(AppScreen.Home)
         true
@@ -202,20 +196,20 @@ class TelegramFeatureController(
 
         // Navigation stays derived from auth/selection state so stale screens self-correct.
         when {
-          snapshot.authState is TelegramAuthState.Ready && isOnProviderDestination(ProviderDestination.CONNECT) -> {
-            showProviderScreen(ProviderDestination.CHAT_LIST)
+          snapshot.authState is TelegramAuthState.Ready && isOnDestination(TelegramDestination.CONNECT) -> {
+            showProviderScreen(TelegramDestination.CHAT_LIST)
             requestChatListLoad()
           }
-          snapshot.selectedChatPreview == null && isOnProviderDestination(ProviderDestination.CHAT_MESSAGES) -> {
+          snapshot.selectedChatPreview == null && isOnDestination(TelegramDestination.CHAT_MESSAGES) -> {
             messageScreenController.stopPlayback(null)
-            showProviderScreen(ProviderDestination.CHAT_LIST)
+            showProviderScreen(TelegramDestination.CHAT_LIST)
           }
           snapshot.authState !is TelegramAuthState.Ready && (
-            isOnProviderDestination(ProviderDestination.CHAT_LIST) ||
-              isOnProviderDestination(ProviderDestination.CHAT_MESSAGES)
+            isOnDestination(TelegramDestination.CHAT_LIST) ||
+              isOnDestination(TelegramDestination.CHAT_MESSAGES)
             ) -> {
             messageScreenController.stopPlayback(null)
-            showProviderScreen(ProviderDestination.CONNECT)
+            showProviderScreen(TelegramDestination.CONNECT)
           }
         }
       }
@@ -233,7 +227,7 @@ class TelegramFeatureController(
   private fun restartAuthentication() {
     messageScreenController.stopPlayback(null)
     clientManager.restart()
-    showProviderScreen(ProviderDestination.CONNECT)
+    showProviderScreen(TelegramDestination.CONNECT)
   }
 
   private fun requestChatListLoad() {
@@ -266,7 +260,7 @@ class TelegramFeatureController(
     try {
       messageScreenController.stopPlayback(null)
       clientManager.selectChat(preview.chatId)
-      showProviderScreen(ProviderDestination.CHAT_MESSAGES)
+      showProviderScreen(TelegramDestination.CHAT_MESSAGES)
     } catch (error: TelegramAuthException) {
       showErrorToast(error.message)
     } catch (error: TelegramClientException) {
@@ -277,7 +271,7 @@ class TelegramFeatureController(
   private fun returnToChatList() {
     messageScreenController.stopPlayback(null)
     clientManager.clearSelectedChat()
-    showProviderScreen(ProviderDestination.CHAT_LIST)
+    showProviderScreen(TelegramDestination.CHAT_LIST)
   }
 
   private fun resetMessageSelection() {
@@ -337,20 +331,13 @@ class TelegramFeatureController(
     }
   }
 
-  private fun isOnProviderDestination(destination: ProviderDestination): Boolean {
-    return currentScreen.matchesProviderDestination(
-      provider = provider,
-      destination = destination,
-    )
+  private fun isOnDestination(destination: TelegramDestination): Boolean {
+    val screen = currentScreen
+    return screen is AppScreen.TelegramScreen && screen.destination == destination
   }
 
-  private fun showProviderScreen(destination: ProviderDestination) {
-    screenHost.showScreen(
-      AppScreen.ProviderScreen(
-        provider = provider,
-        destination = destination,
-      ),
-    )
+  private fun showProviderScreen(destination: TelegramDestination) {
+    screenHost.showScreen(AppScreen.TelegramScreen(destination))
   }
 
   private fun showErrorToast(message: String?) {

@@ -47,16 +47,12 @@ class MainActivity : AppCompatActivity(), AppScreenHost {
 
   override fun showScreen(screen: AppScreen) {
     // Unsupported provider destinations always collapse back to Home at the shell boundary.
-    currentScreen = normalizeScreen(screen)
-    binding.homeScreen.isVisible = currentScreen is AppScreen.Home
-    providerRegistry.render(currentScreen)
-  }
-
-  private fun normalizeScreen(screen: AppScreen): AppScreen {
-    return normalizeAppShellScreen(
+    currentScreen = normalizeAppShellScreen(
       requestedScreen = screen,
       supportsRequestedScreen = providerRegistry.supports(screen),
     )
+    binding.homeScreen.isVisible = currentScreen is AppScreen.Home
+    providerRegistry.render(currentScreen)
   }
 
   private fun setupHomeScreen() {
@@ -205,4 +201,15 @@ internal fun resolveHomeProviderCardState(
 
 internal fun resolveHomeSubtitleTextResId(hasActiveProviders: Boolean): Int {
   return if (hasActiveProviders) R.string.home_subtitle else R.string.home_subtitle_unavailable
+}
+
+internal fun normalizeAppShellScreen(
+  requestedScreen: AppScreen,
+  supportsRequestedScreen: Boolean,
+): AppScreen {
+  return when {
+    requestedScreen is AppScreen.Home -> requestedScreen
+    supportsRequestedScreen -> requestedScreen
+    else -> AppScreen.Home
+  }
 }

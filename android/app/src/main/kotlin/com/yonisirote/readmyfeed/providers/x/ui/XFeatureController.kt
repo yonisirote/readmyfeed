@@ -10,9 +10,7 @@ import com.yonisirote.readmyfeed.providers.ProviderFeatureController
 import com.yonisirote.readmyfeed.providers.x.auth.XAuthException
 import com.yonisirote.readmyfeed.shell.AppScreen
 import com.yonisirote.readmyfeed.shell.AppScreenHost
-import com.yonisirote.readmyfeed.shell.ProviderDestination
-import com.yonisirote.readmyfeed.shell.matchesProvider
-import com.yonisirote.readmyfeed.shell.matchesProviderDestination
+import com.yonisirote.readmyfeed.shell.XDestination
 import com.yonisirote.readmyfeed.shell.resolveHomeSelectionScreen
 
 internal class XFeatureController(
@@ -50,7 +48,7 @@ internal class XFeatureController(
         timelineService = dependencies.timelineService,
         timelineSpeechPlayer = dependencies.timelineSpeechPlayer,
         feedAdapter = dependencies.feedAdapter,
-        isContentListVisible = { isOnProviderDestination(ProviderDestination.CONTENT_LIST) },
+        isContentListVisible = { isOnDestination(XDestination.CONTENT_LIST) },
         showProviderScreen = ::showProviderScreen,
         showHome = { screenHost.showScreen(AppScreen.Home) },
         requestLogin = { startLoginFlow(clearExistingSession = false) },
@@ -74,13 +72,7 @@ internal class XFeatureController(
   }
 
   override fun supports(screen: AppScreen): Boolean {
-    return screen.matchesProviderDestination(
-      provider = provider,
-      destination = ProviderDestination.CONNECT,
-    ) || screen.matchesProviderDestination(
-      provider = provider,
-      destination = ProviderDestination.CONTENT_LIST,
-    )
+    return screen is AppScreen.XScreen
   }
 
   override fun render(screen: AppScreen) {
@@ -88,9 +80,9 @@ internal class XFeatureController(
       return
     }
 
-    currentScreen = if (supports(screen)) screen else AppScreen.Home
-    val showsSignIn = isOnProviderDestination(ProviderDestination.CONNECT)
-    val showsTimeline = isOnProviderDestination(ProviderDestination.CONTENT_LIST)
+    currentScreen = screen
+    val showsSignIn = isOnDestination(XDestination.CONNECT)
+    val showsTimeline = isOnDestination(XDestination.CONTENT_LIST)
 
     binding.xSignInScreen.isVisible = showsSignIn
     binding.feedScreen.isVisible = showsTimeline
@@ -102,24 +94,18 @@ internal class XFeatureController(
       return
     }
 
-    val targetScreen = resolveHomeSelectionScreen(
-      provider = provider,
-      hasStoredSession = hasStoredSession,
-    )
-
-    when (targetScreen) {
+    when (val targetScreen = resolveHomeSelectionScreen(provider, hasStoredSession)) {
       AppScreen.Home -> screenHost.showScreen(AppScreen.Home)
-      is AppScreen.ProviderScreen -> {
-        when {
-          targetScreen.matchesProvider(provider, ProviderDestination.CONNECT) -> {
-            startLoginFlow(clearExistingSession = false)
-          }
-          targetScreen.matchesProvider(provider, ProviderDestination.CONTENT_LIST) -> {
+      is AppScreen.XScreen -> {
+        when (targetScreen.destination) {
+          XDestination.CONNECT -> startLoginFlow(clearExistingSession = false)
+          XDestination.CONTENT_LIST -> {
             screenHost.showScreen(targetScreen)
             timelineController.fetchFollowingTimeline(append = false)
           }
         }
       }
+      is AppScreen.TelegramScreen -> Unit
     }
   }
 
@@ -129,8 +115,8 @@ internal class XFeatureController(
     }
 
     return when {
-      isOnProviderDestination(ProviderDestination.CONNECT) -> signInController.handleBackPress()
-      isOnProviderDestination(ProviderDestination.CONTENT_LIST) -> timelineController.handleBackPress()
+      isOnDestination(XDestination.CONNECT) -> signInController.handleBackPress()
+      isOnDestination(XDestination.CONTENT_LIST) -> timelineController.handleBackPress()
       else -> false
     }
   }
@@ -169,19 +155,12 @@ internal class XFeatureController(
     timelineController.setHasStoredSession(value)
   }
 
-  private fun isOnProviderDestination(destination: ProviderDestination): Boolean {
-    return currentScreen.matchesProviderDestination(
-      provider = provider,
-      destination = destination,
-    )
+  private fun isOnDestination(destination: XDestination): Boolean {
+    val screen = currentScreen
+    return screen is AppScreen.XScreen && screen.destination == destination
   }
 
-  private fun showProviderScreen(destination: ProviderDestination) {
-    screenHost.showScreen(
-      AppScreen.ProviderScreen(
-        provider = provider,
-        destination = destination,
-      ),
-    )
+  private fun showProviderScreen(destination: XDestination) {
+    screenHost.showScreen(AppScreen.XScreen(destination))
   }
 }

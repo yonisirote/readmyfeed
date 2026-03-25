@@ -1,16 +1,16 @@
 package com.yonisirote.readmyfeed.providers.telegram.ui
 
 import androidx.appcompat.app.AppCompatActivity
-import com.yonisirote.readmyfeed.shell.AppScreen
-import com.yonisirote.readmyfeed.shell.AppScreenHost
-import com.yonisirote.readmyfeed.providers.FeedProvider
-import com.yonisirote.readmyfeed.shell.ProviderDestination
 import com.yonisirote.readmyfeed.R
 import com.yonisirote.readmyfeed.databinding.ActivityMainBinding
 import com.yonisirote.readmyfeed.providers.telegram.client.TelegramClientManager
 import com.yonisirote.readmyfeed.providers.telegram.client.TelegramTdlibClient
 import com.yonisirote.readmyfeed.providers.telegram.client.TelegramTdlibClientFactory
 import com.yonisirote.readmyfeed.providers.telegram.client.TelegramTdlibParametersFactory
+import com.yonisirote.readmyfeed.shell.AppScreen
+import com.yonisirote.readmyfeed.shell.AppScreenHost
+import com.yonisirote.readmyfeed.shell.TelegramDestination
+import com.yonisirote.readmyfeed.shell.XDestination
 import com.yonisirote.readmyfeed.tts.TtsEngine
 import com.yonisirote.readmyfeed.tts.TtsService
 import com.yonisirote.readmyfeed.tts.TtsSpeakOptions
@@ -29,30 +29,22 @@ class TelegramFeatureControllerTest {
   fun supportsConnectChatListAndChatMessagesScreens() {
     val setup = buildController()
 
-    assertTrue(
-      setup.controller.supports(AppScreen.ProviderScreen(FeedProvider.TELEGRAM, ProviderDestination.CONNECT)),
-    )
-    assertTrue(
-      setup.controller.supports(AppScreen.ProviderScreen(FeedProvider.TELEGRAM, ProviderDestination.CHAT_LIST)),
-    )
-    assertTrue(
-      setup.controller.supports(AppScreen.ProviderScreen(FeedProvider.TELEGRAM, ProviderDestination.CHAT_MESSAGES)),
-    )
-    assertFalse(
-      setup.controller.supports(AppScreen.ProviderScreen(FeedProvider.X, ProviderDestination.CONTENT_LIST)),
-    )
+    assertTrue(setup.controller.supports(AppScreen.TelegramScreen(TelegramDestination.CONNECT)))
+    assertTrue(setup.controller.supports(AppScreen.TelegramScreen(TelegramDestination.CHAT_LIST)))
+    assertTrue(setup.controller.supports(AppScreen.TelegramScreen(TelegramDestination.CHAT_MESSAGES)))
+    assertFalse(setup.controller.supports(AppScreen.XScreen(XDestination.CONTENT_LIST)))
   }
 
   @Test
   fun renderShowsOnlyRequestedTelegramScreen() {
     val setup = buildController()
 
-    setup.controller.render(AppScreen.ProviderScreen(FeedProvider.TELEGRAM, ProviderDestination.CHAT_LIST))
+    setup.controller.render(AppScreen.TelegramScreen(TelegramDestination.CHAT_LIST))
     assertTrue(setup.binding.telegramChatListScreen.isShown)
     assertFalse(setup.binding.telegramConnectScreen.isShown)
     assertFalse(setup.binding.telegramChatMessagesScreen.isShown)
 
-    setup.controller.render(AppScreen.ProviderScreen(FeedProvider.TELEGRAM, ProviderDestination.CHAT_MESSAGES))
+    setup.controller.render(AppScreen.TelegramScreen(TelegramDestination.CHAT_MESSAGES))
     assertTrue(setup.binding.telegramChatMessagesScreen.isShown)
     assertFalse(setup.binding.telegramChatListScreen.isShown)
   }
@@ -60,11 +52,11 @@ class TelegramFeatureControllerTest {
   @Test
   fun handleBackPressFromChatMessagesReturnsToChatList() {
     val setup = buildController()
-    setup.controller.render(AppScreen.ProviderScreen(FeedProvider.TELEGRAM, ProviderDestination.CHAT_MESSAGES))
+    setup.controller.render(AppScreen.TelegramScreen(TelegramDestination.CHAT_MESSAGES))
 
     assertTrue(setup.controller.handleBackPress())
     assertEquals(
-      AppScreen.ProviderScreen(FeedProvider.TELEGRAM, ProviderDestination.CHAT_LIST),
+      AppScreen.TelegramScreen(TelegramDestination.CHAT_LIST),
       setup.screenHost.shownScreens.last(),
     )
   }

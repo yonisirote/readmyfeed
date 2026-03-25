@@ -1,7 +1,8 @@
 package com.yonisirote.readmyfeed.providers
 
 import com.yonisirote.readmyfeed.shell.AppScreen
-import com.yonisirote.readmyfeed.shell.ProviderDestination
+import com.yonisirote.readmyfeed.shell.TelegramDestination
+import com.yonisirote.readmyfeed.shell.XDestination
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -37,14 +38,8 @@ class ProviderFeatureRegistryTest {
 
   @Test
   fun supportsIgnoresProvidersThatFailedInitialization() {
-    val xScreen = AppScreen.ProviderScreen(
-      provider = FeedProvider.X,
-      destination = ProviderDestination.CONTENT_LIST,
-    )
-    val telegramScreen = AppScreen.ProviderScreen(
-      provider = FeedProvider.TELEGRAM,
-      destination = ProviderDestination.CHAT_LIST,
-    )
+    val xScreen = AppScreen.XScreen(XDestination.CONTENT_LIST)
+    val telegramScreen = AppScreen.TelegramScreen(TelegramDestination.CHAT_LIST)
     val xController = FakeProviderFeatureController(
       provider = FeedProvider.X,
       initializeResult = true,

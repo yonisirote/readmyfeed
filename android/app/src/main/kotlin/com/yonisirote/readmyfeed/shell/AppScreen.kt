@@ -2,9 +2,13 @@ package com.yonisirote.readmyfeed.shell
 
 import com.yonisirote.readmyfeed.providers.FeedProvider
 
-enum class ProviderDestination {
+enum class XDestination {
   CONNECT,
   CONTENT_LIST,
+}
+
+enum class TelegramDestination {
+  CONNECT,
   CHAT_LIST,
   CHAT_MESSAGES,
 }
@@ -12,9 +16,12 @@ enum class ProviderDestination {
 sealed interface AppScreen {
   data object Home : AppScreen
 
-  data class ProviderScreen(
-    val provider: FeedProvider,
-    val destination: ProviderDestination,
+  data class XScreen(
+    val destination: XDestination,
+  ) : AppScreen
+
+  data class TelegramScreen(
+    val destination: TelegramDestination,
   ) : AppScreen
 }
 
@@ -27,30 +34,19 @@ fun resolveHomeSelectionScreen(
     return AppScreen.Home
   }
 
-  val destination = if (hasStoredSession) {
-    provider.connectedDestination
-  } else {
-    provider.connectDestination
+  return when (provider) {
+    FeedProvider.X -> AppScreen.XScreen(
+      destination = if (hasStoredSession) XDestination.CONTENT_LIST else XDestination.CONNECT,
+    )
+    FeedProvider.TELEGRAM -> AppScreen.TelegramScreen(
+      destination = if (hasStoredSession) {
+        TelegramDestination.CHAT_LIST
+      } else {
+        TelegramDestination.CONNECT
+      },
+    )
+    FeedProvider.WHATSAPP,
+    FeedProvider.FACEBOOK,
+    -> AppScreen.Home
   }
-
-  return AppScreen.ProviderScreen(
-    provider = provider,
-    destination = destination,
-  )
-}
-
-fun AppScreen.matchesProviderDestination(
-  provider: FeedProvider,
-  destination: ProviderDestination,
-): Boolean {
-  return this is AppScreen.ProviderScreen &&
-    this.provider == provider &&
-    this.destination == destination
-}
-
-fun AppScreen.ProviderScreen.matchesProvider(
-  provider: FeedProvider,
-  destination: ProviderDestination,
-): Boolean {
-  return this.provider == provider && this.destination == destination
 }

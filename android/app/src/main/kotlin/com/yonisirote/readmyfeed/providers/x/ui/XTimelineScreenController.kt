@@ -17,7 +17,7 @@ import com.yonisirote.readmyfeed.providers.x.timeline.XTimelineService
 import com.yonisirote.readmyfeed.providers.x.timeline.mergeTimelineItems
 import com.yonisirote.readmyfeed.providers.x.timeline.shouldClearXTimelineSession
 import com.yonisirote.readmyfeed.providers.x.timeline.shouldPrefetchTimeline
-import com.yonisirote.readmyfeed.shell.ProviderDestination
+import com.yonisirote.readmyfeed.shell.XDestination
 import com.yonisirote.readmyfeed.tts.TtsException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -32,7 +32,7 @@ internal class XTimelineScreenController(
   private val timelineSpeechPlayer: XTimelineSpeechPlayer,
   private val feedAdapter: XTimelineFeedAdapter,
   private val isContentListVisible: () -> Boolean,
-  private val showProviderScreen: (ProviderDestination) -> Unit,
+  private val showProviderScreen: (XDestination) -> Unit,
   private val showHome: () -> Unit,
   private val requestLogin: () -> Unit,
   private val clearStoredSession: () -> Unit,
@@ -216,7 +216,7 @@ internal class XTimelineScreenController(
     feedAdapter.submitList(timelineItems)
 
     if (!isContentListVisible()) {
-      showProviderScreen(ProviderDestination.CONTENT_LIST)
+      showProviderScreen(XDestination.CONTENT_LIST)
     }
 
     binding.speechStatusTextView.text = when {
@@ -374,7 +374,7 @@ internal class XTimelineScreenController(
     stopFeedPlayback(null)
 
     if (!isContentListVisible()) {
-      showProviderScreen(ProviderDestination.CONTENT_LIST)
+      showProviderScreen(XDestination.CONTENT_LIST)
     }
 
     Toast.makeText(activity, message, Toast.LENGTH_LONG).show()

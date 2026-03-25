@@ -3,39 +3,31 @@ package com.yonisirote.readmyfeed.shell
 import com.yonisirote.readmyfeed.providers.FeedProvider
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class AppScreenTest {
   @Test
-  fun availableProviderWithoutStoredSessionRoutesToConnectScreen() {
+  fun availableXProviderWithoutStoredSessionRoutesToConnectScreen() {
     val screen = resolveHomeSelectionScreen(
       provider = FeedProvider.X,
       hasStoredSession = false,
     )
 
     assertEquals(
-      AppScreen.ProviderScreen(
-        provider = FeedProvider.X,
-        destination = ProviderDestination.CONNECT,
-      ),
+      AppScreen.XScreen(XDestination.CONNECT),
       screen,
     )
   }
 
   @Test
-  fun availableProviderWithStoredSessionRoutesToConnectedDestination() {
+  fun availableXProviderWithStoredSessionRoutesToContentList() {
     val screen = resolveHomeSelectionScreen(
       provider = FeedProvider.X,
       hasStoredSession = true,
     )
 
     assertEquals(
-      AppScreen.ProviderScreen(
-        provider = FeedProvider.X,
-        destination = ProviderDestination.CONTENT_LIST,
-      ),
+      AppScreen.XScreen(XDestination.CONTENT_LIST),
       screen,
     )
   }
@@ -48,10 +40,7 @@ class AppScreenTest {
     )
 
     assertEquals(
-      AppScreen.ProviderScreen(
-        provider = FeedProvider.TELEGRAM,
-        destination = ProviderDestination.CONNECT,
-      ),
+      AppScreen.TelegramScreen(TelegramDestination.CONNECT),
       screen,
     )
   }
@@ -64,24 +53,18 @@ class AppScreenTest {
     )
 
     assertEquals(
-      AppScreen.ProviderScreen(
-        provider = FeedProvider.TELEGRAM,
-        destination = ProviderDestination.CHAT_LIST,
-      ),
+      AppScreen.TelegramScreen(TelegramDestination.CHAT_LIST),
       screen,
     )
   }
 
   @Test
-  fun providerScreenMatchesExpectedDestination() {
-    val screen = AppScreen.ProviderScreen(
-      provider = FeedProvider.X,
-      destination = ProviderDestination.CONTENT_LIST,
+  fun unavailableProviderRoutesBackHome() {
+    val screen = resolveHomeSelectionScreen(
+      provider = FeedProvider.WHATSAPP,
+      hasStoredSession = true,
     )
 
-    assertTrue(screen.matchesProvider(FeedProvider.X, ProviderDestination.CONTENT_LIST))
-    assertTrue(screen.matchesProviderDestination(FeedProvider.X, ProviderDestination.CONTENT_LIST))
-    assertFalse(screen.matchesProvider(FeedProvider.X, ProviderDestination.CONNECT))
-    assertFalse(screen.matchesProviderDestination(FeedProvider.TELEGRAM, ProviderDestination.CHAT_LIST))
+    assertEquals(AppScreen.Home, screen)
   }
 }
