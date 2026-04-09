@@ -8,12 +8,8 @@ import com.yonisirote.readmyfeed.R
 import com.yonisirote.readmyfeed.databinding.ActivityMainBinding
 import com.yonisirote.readmyfeed.providers.telegram.client.TelegramClientSnapshot
 import com.yonisirote.readmyfeed.providers.telegram.speech.TelegramMessageSpeechPlayer
-import com.yonisirote.readmyfeed.tts.TtsException
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import com.yonisirote.readmyfeed.tts.ScreenPlaybackController
+import com.yonisirote.readmyfeed.tts.TtsPlaybackSummary
 
 internal class TelegramMessageScreenController(
   private val activity: AppCompatActivity,
@@ -25,10 +21,47 @@ internal class TelegramMessageScreenController(
   private val onRequestMessagesLoad: () -> Unit,
 ) {
   private var latestSnapshot: TelegramClientSnapshot = TelegramClientSnapshot()
-  private var speakJob: Job? = null
   private var isSpeakingMessages = false
+  private lateinit var playbackController: ScreenPlaybackController<com.yonisirote.readmyfeed.providers.telegram.messages.TelegramMessageItem>
 
   fun initialize() {
+    playbackController = ScreenPlaybackController(
+      coroutineScope = activity.lifecycleScope,
+      hasSpeakableItems = messageSpeechPlayer::hasSpeakableItems,
+      speak = messageSpeechPlayer::speak,
+      stopPlayback = messageSpeechPlayer::stop,
+      renderLoadingStatus = {
+        binding.telegramMessageSpeechStatusTextView.text = activity.getString(
+          R.string.telegram_message_speech_status_loading,
+        )
+      },
+      renderProgressStatus = { index, total ->
+        activity.runOnUiThread {
+          if (isSpeakingMessages) {
+            binding.telegramMessageSpeechStatusTextView.text = activity.getString(
+              R.string.telegram_message_speech_status_playing,
+              index,
+              total,
+            )
+          }
+        }
+      },
+      renderNoItemsStatus = {
+        binding.telegramMessageSpeechStatusTextView.text = activity.getString(
+          R.string.telegram_message_speech_status_no_items,
+        )
+      },
+      renderFinishedStatus = { summary ->
+        binding.telegramMessageSpeechStatusTextView.text = resolveFinishedPlaybackStatus(summary)
+      },
+      renderErrorStatus = { message ->
+        binding.telegramMessageSpeechStatusTextView.text = buildTelegramSpeechErrorMessage(message)
+      },
+      onPlaybackStateChanged = { isPlaying ->
+        isSpeakingMessages = isPlaying
+        updateMessageSpeechControls(latestSnapshot)
+      },
+    )
     binding.backFromTelegramChatMessages.setOnClickListener {
       onBackToChatList()
     }
@@ -93,21 +126,16 @@ internal class TelegramMessageScreenController(
   }
 
   fun stopPlayback(status: String?) {
-    speakJob?.cancel()
-    speakJob = null
-    messageSpeechPlayer.stop()
-    isSpeakingMessages = false
-    updateMessageSpeechControls(latestSnapshot)
-
-    if (status != null) {
-      binding.telegramMessageSpeechStatusTextView.text = status
-    }
+    playbackController.stop(
+      status = status?.let { message ->
+        { binding.telegramMessageSpeechStatusTextView.text = message }
+      },
+    )
   }
 
   fun onDestroy() {
-    speakJob?.cancel()
+    playbackController.shutdown()
     binding.telegramMessageRecyclerView.adapter = null
-    messageSpeechPlayer.stop()
     messageSpeechPlayer.shutdown()
   }
 
@@ -160,74 +188,24 @@ internal class TelegramMessageScreenController(
   }
 
   private fun startMessagePlayback() {
-    val messages = latestSnapshot.selectedChatMessages
-    if (!messageSpeechPlayer.hasSpeakableItems(messages)) {
-      binding.telegramMessageSpeechStatusTextView.text = activity.getString(
-        R.string.telegram_message_speech_status_no_items,
-      )
-      updateMessageSpeechControls(latestSnapshot)
-      return
-    }
-
-    speakJob?.cancel()
-    speakJob = activity.lifecycleScope.launch {
-      // Playback runs off-main, but progress/status updates stay on the UI thread.
-      isSpeakingMessages = true
-      updateMessageSpeechControls(latestSnapshot)
-      binding.telegramMessageSpeechStatusTextView.text = activity.getString(
-        R.string.telegram_message_speech_status_loading,
-      )
-
-      try {
-        val summary = withContext(Dispatchers.IO) {
-          messageSpeechPlayer.speak(messages) { _, index, total ->
-            activity.runOnUiThread {
-              if (isSpeakingMessages) {
-                binding.telegramMessageSpeechStatusTextView.text = activity.getString(
-                  R.string.telegram_message_speech_status_playing,
-                  index,
-                  total,
-                )
-              }
-            }
-          }
-        }
-
-        if (!isSpeakingMessages) {
-          return@launch
-        }
-
-        binding.telegramMessageSpeechStatusTextView.text = when {
-          summary.spokenItems <= 0 -> activity.getString(R.string.telegram_message_speech_status_no_items)
-          summary.skippedItems > 0 -> activity.getString(
-            R.string.telegram_message_speech_status_skipped,
-            summary.spokenItems,
-            summary.skippedItems,
-          )
-          else -> activity.getString(R.string.telegram_message_speech_status_done, summary.spokenItems)
-        }
-      } catch (error: CancellationException) {
-        throw error
-      } catch (error: Exception) {
-        if (isSpeakingMessages) {
-          val message = if (error is TtsException) {
-            error.message
-          } else {
-            error.message ?: "Unknown error."
-          }
-          binding.telegramMessageSpeechStatusTextView.text = buildTelegramSpeechErrorMessage(message)
-        }
-      } finally {
-        isSpeakingMessages = false
-        speakJob = null
-        updateMessageSpeechControls(latestSnapshot)
-      }
-    }
+    playbackController.start(latestSnapshot.selectedChatMessages)
   }
 
   private fun buildTelegramSpeechErrorMessage(message: String?): String {
     return activity.getString(R.string.telegram_message_speech_status_error_prefix) +
       " " +
       (message ?: "Unknown error.")
+  }
+
+  private fun resolveFinishedPlaybackStatus(summary: TtsPlaybackSummary): String {
+    return when {
+      summary.spokenItems <= 0 -> activity.getString(R.string.telegram_message_speech_status_no_items)
+      summary.skippedItems > 0 -> activity.getString(
+        R.string.telegram_message_speech_status_skipped,
+        summary.spokenItems,
+        summary.skippedItems,
+      )
+      else -> activity.getString(R.string.telegram_message_speech_status_done, summary.spokenItems)
+    }
   }
 }

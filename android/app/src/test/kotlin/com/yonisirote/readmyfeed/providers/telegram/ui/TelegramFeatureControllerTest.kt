@@ -8,9 +8,8 @@ import com.yonisirote.readmyfeed.providers.telegram.client.TelegramTdlibClient
 import com.yonisirote.readmyfeed.providers.telegram.client.TelegramTdlibClientFactory
 import com.yonisirote.readmyfeed.providers.telegram.client.TelegramTdlibParametersFactory
 import com.yonisirote.readmyfeed.shell.AppScreen
-import com.yonisirote.readmyfeed.shell.AppScreenHost
+import com.yonisirote.readmyfeed.shell.ProviderDestination
 import com.yonisirote.readmyfeed.shell.TelegramDestination
-import com.yonisirote.readmyfeed.shell.XDestination
 import com.yonisirote.readmyfeed.tts.TtsEngine
 import com.yonisirote.readmyfeed.tts.TtsService
 import com.yonisirote.readmyfeed.tts.TtsSpeakOptions
@@ -26,25 +25,27 @@ import org.robolectric.RobolectricTestRunner
 @RunWith(RobolectricTestRunner::class)
 class TelegramFeatureControllerTest {
   @Test
-  fun supportsConnectChatListAndChatMessagesScreens() {
+  fun hideClearsTelegramScreens() {
     val setup = buildController()
 
-    assertTrue(setup.controller.supports(AppScreen.TelegramScreen(TelegramDestination.CONNECT)))
-    assertTrue(setup.controller.supports(AppScreen.TelegramScreen(TelegramDestination.CHAT_LIST)))
-    assertTrue(setup.controller.supports(AppScreen.TelegramScreen(TelegramDestination.CHAT_MESSAGES)))
-    assertFalse(setup.controller.supports(AppScreen.XScreen(XDestination.CONTENT_LIST)))
+    setup.controller.render(AppScreen.TelegramScreen(TelegramDestination.ChatList))
+    setup.controller.hide()
+
+    assertFalse(setup.binding.telegramConnectScreen.isShown)
+    assertFalse(setup.binding.telegramChatListScreen.isShown)
+    assertFalse(setup.binding.telegramChatMessagesScreen.isShown)
   }
 
   @Test
   fun renderShowsOnlyRequestedTelegramScreen() {
     val setup = buildController()
 
-    setup.controller.render(AppScreen.TelegramScreen(TelegramDestination.CHAT_LIST))
+    setup.controller.render(AppScreen.TelegramScreen(TelegramDestination.ChatList))
     assertTrue(setup.binding.telegramChatListScreen.isShown)
     assertFalse(setup.binding.telegramConnectScreen.isShown)
     assertFalse(setup.binding.telegramChatMessagesScreen.isShown)
 
-    setup.controller.render(AppScreen.TelegramScreen(TelegramDestination.CHAT_MESSAGES))
+    setup.controller.render(AppScreen.TelegramScreen(TelegramDestination.ChatMessages))
     assertTrue(setup.binding.telegramChatMessagesScreen.isShown)
     assertFalse(setup.binding.telegramChatListScreen.isShown)
   }
@@ -52,12 +53,31 @@ class TelegramFeatureControllerTest {
   @Test
   fun handleBackPressFromChatMessagesReturnsToChatList() {
     val setup = buildController()
-    setup.controller.render(AppScreen.TelegramScreen(TelegramDestination.CHAT_MESSAGES))
+    setup.controller.render(AppScreen.TelegramScreen(TelegramDestination.ChatMessages))
 
     assertTrue(setup.controller.handleBackPress())
     assertEquals(
-      AppScreen.TelegramScreen(TelegramDestination.CHAT_LIST),
-      setup.screenHost.shownScreens.last(),
+      AppScreen.TelegramScreen(TelegramDestination.ChatList),
+      setup.shownScreens.last(),
+    )
+  }
+
+  @Test
+  fun handleBackPressReturnsFalseWhenInactive() {
+    val setup = buildController()
+
+    assertFalse(setup.controller.handleBackPress())
+  }
+
+  @Test
+  fun openFromHomeWithoutConnectedSessionShowsConnectScreen() {
+    val setup = buildController()
+
+    setup.controller.openFromHome()
+
+    assertEquals(
+      AppScreen.TelegramScreen(ProviderDestination.Connect),
+      setup.shownScreens.last(),
     )
   }
 
@@ -66,7 +86,7 @@ class TelegramFeatureControllerTest {
     activity.setTheme(R.style.Theme_ReadMyFeed)
     val binding = ActivityMainBinding.inflate(activity.layoutInflater)
     activity.setContentView(binding.root)
-    val screenHost = RecordingScreenHost()
+    val shownScreens = mutableListOf<AppScreen>()
     val clientManager = TelegramClientManager(
       clientFactory = FakeTelegramTdlibClientFactory(),
       parametersFactory = TelegramTdlibParametersFactory { throw UnsupportedOperationException("Unused in test") },
@@ -75,7 +95,7 @@ class TelegramFeatureControllerTest {
     val controller = TelegramFeatureController(
       activity = activity,
       binding = binding,
-      screenHost = screenHost,
+      showScreen = { screen -> shownScreens += screen },
       clientManagerFactory = { clientManager },
       ttsServiceFactory = { TtsService(FakeTtsEngine()) },
     )
@@ -84,25 +104,17 @@ class TelegramFeatureControllerTest {
     return ControllerSetup(
       activity = activity,
       binding = binding,
-      screenHost = screenHost,
       controller = controller,
+      shownScreens = shownScreens,
     )
   }
 
   private data class ControllerSetup(
     val activity: AppCompatActivity,
     val binding: ActivityMainBinding,
-    val screenHost: RecordingScreenHost,
     val controller: TelegramFeatureController,
+    val shownScreens: MutableList<AppScreen>,
   )
-
-  private class RecordingScreenHost : AppScreenHost {
-    val shownScreens = mutableListOf<AppScreen>()
-
-    override fun showScreen(screen: AppScreen) {
-      shownScreens += screen
-    }
-  }
 
   private class FakeTelegramTdlibClientFactory : TelegramTdlibClientFactory {
     override fun create(

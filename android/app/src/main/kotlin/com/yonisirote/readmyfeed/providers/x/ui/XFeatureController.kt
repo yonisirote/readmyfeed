@@ -9,14 +9,13 @@ import com.yonisirote.readmyfeed.providers.FeedProvider
 import com.yonisirote.readmyfeed.providers.ProviderFeatureController
 import com.yonisirote.readmyfeed.providers.x.auth.XAuthException
 import com.yonisirote.readmyfeed.shell.AppScreen
-import com.yonisirote.readmyfeed.shell.AppScreenHost
+import com.yonisirote.readmyfeed.shell.ProviderDestination
 import com.yonisirote.readmyfeed.shell.XDestination
-import com.yonisirote.readmyfeed.shell.resolveHomeSelectionScreen
 
 internal class XFeatureController(
   private val activity: AppCompatActivity,
   private val binding: ActivityMainBinding,
-  private val screenHost: AppScreenHost,
+  private val showScreen: (AppScreen) -> Unit,
   private val dependenciesFactory: (AppCompatActivity) -> XFeatureDependencies = ::createXFeatureDependencies,
 ) : ProviderFeatureController {
 
@@ -24,7 +23,7 @@ internal class XFeatureController(
   private lateinit var timelineController: XTimelineScreenController
 
   private var hasStoredSession = false
-  private var currentScreen: AppScreen = AppScreen.Home
+  private var currentDestination: XDestination? = null
   private var isInitialized = false
 
   override val provider: FeedProvider = FeedProvider.X
@@ -38,7 +37,7 @@ internal class XFeatureController(
         binding = binding,
         authService = dependencies.authService,
         captureCoordinator = dependencies.captureCoordinator,
-        showHome = { screenHost.showScreen(AppScreen.Home) },
+        showHome = { showScreen(AppScreen.Home) },
         showProviderScreen = ::showProviderScreen,
         onSessionCaptured = ::handleCapturedSession,
       )
@@ -48,9 +47,9 @@ internal class XFeatureController(
         timelineService = dependencies.timelineService,
         timelineSpeechPlayer = dependencies.timelineSpeechPlayer,
         feedAdapter = dependencies.feedAdapter,
-        isContentListVisible = { isOnDestination(XDestination.CONTENT_LIST) },
+        isContentListVisible = { currentDestination == XDestination.ContentList },
         showProviderScreen = ::showProviderScreen,
-        showHome = { screenHost.showScreen(AppScreen.Home) },
+        showHome = { showScreen(AppScreen.Home) },
         requestLogin = { startLoginFlow(clearExistingSession = false) },
         clearStoredSession = { signInController.clearStoredSession() },
         onSessionAvailabilityChanged = ::updateStoredSessionAvailability,
@@ -71,22 +70,29 @@ internal class XFeatureController(
     }
   }
 
-  override fun supports(screen: AppScreen): Boolean {
-    return screen is AppScreen.XScreen
-  }
-
   override fun render(screen: AppScreen) {
     if (!isInitialized) {
       return
     }
 
-    currentScreen = screen
-    val showsSignIn = isOnDestination(XDestination.CONNECT)
-    val showsTimeline = isOnDestination(XDestination.CONTENT_LIST)
+    require(screen is AppScreen.XScreen) {
+      "XFeatureController can render only X screens."
+    }
+
+    currentDestination = screen.destination
+    val showsSignIn = currentDestination == ProviderDestination.Connect
+    val showsTimeline = currentDestination == XDestination.ContentList
 
     binding.xSignInScreen.isVisible = showsSignIn
     binding.feedScreen.isVisible = showsTimeline
     timelineController.render(isVisible = showsTimeline)
+  }
+
+  override fun hide() {
+    currentDestination = null
+    binding.xSignInScreen.isVisible = false
+    binding.feedScreen.isVisible = false
+    timelineController.render(isVisible = false)
   }
 
   override fun openFromHome() {
@@ -94,18 +100,16 @@ internal class XFeatureController(
       return
     }
 
-    when (val targetScreen = resolveHomeSelectionScreen(provider, hasStoredSession)) {
-      AppScreen.Home -> screenHost.showScreen(AppScreen.Home)
-      is AppScreen.XScreen -> {
-        when (targetScreen.destination) {
-          XDestination.CONNECT -> startLoginFlow(clearExistingSession = false)
-          XDestination.CONTENT_LIST -> {
-            screenHost.showScreen(targetScreen)
-            timelineController.fetchFollowingTimeline(append = false)
-          }
-        }
-      }
-      is AppScreen.TelegramScreen -> Unit
+    if (!provider.isAvailable) {
+      showScreen(AppScreen.Home)
+      return
+    }
+
+    if (hasStoredSession) {
+      showProviderScreen(XDestination.ContentList)
+      timelineController.fetchFollowingTimeline(append = false)
+    } else {
+      startLoginFlow(clearExistingSession = false)
     }
   }
 
@@ -115,8 +119,8 @@ internal class XFeatureController(
     }
 
     return when {
-      isOnDestination(XDestination.CONNECT) -> signInController.handleBackPress()
-      isOnDestination(XDestination.CONTENT_LIST) -> timelineController.handleBackPress()
+      currentDestination == ProviderDestination.Connect -> signInController.handleBackPress()
+      currentDestination == XDestination.ContentList -> timelineController.handleBackPress()
       else -> false
     }
   }
@@ -155,12 +159,7 @@ internal class XFeatureController(
     timelineController.setHasStoredSession(value)
   }
 
-  private fun isOnDestination(destination: XDestination): Boolean {
-    val screen = currentScreen
-    return screen is AppScreen.XScreen && screen.destination == destination
-  }
-
   private fun showProviderScreen(destination: XDestination) {
-    screenHost.showScreen(AppScreen.XScreen(destination))
+    showScreen(AppScreen.XScreen(destination))
   }
 }

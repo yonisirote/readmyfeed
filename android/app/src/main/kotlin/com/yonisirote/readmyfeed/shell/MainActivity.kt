@@ -14,7 +14,7 @@ import com.yonisirote.readmyfeed.providers.buildProviderFeatureRegistry
 
 private const val DISABLED_HOME_CARD_ALPHA = 0.82f
 
-class MainActivity : AppCompatActivity(), AppScreenHost {
+class MainActivity : AppCompatActivity() {
   private lateinit var binding: ActivityMainBinding
   private lateinit var providerRegistry: ProviderFeatureRegistry
 
@@ -28,7 +28,7 @@ class MainActivity : AppCompatActivity(), AppScreenHost {
     providerRegistry = buildProviderFeatureRegistry(
       activity = this,
       binding = binding,
-      screenHost = this,
+      showScreen = ::showScreen,
     )
     providerRegistry.initializeAll()
 
@@ -45,11 +45,11 @@ class MainActivity : AppCompatActivity(), AppScreenHost {
     super.onDestroy()
   }
 
-  override fun showScreen(screen: AppScreen) {
+  fun showScreen(screen: AppScreen) {
     // Unsupported provider destinations always collapse back to Home at the shell boundary.
     currentScreen = normalizeAppShellScreen(
       requestedScreen = screen,
-      supportsRequestedScreen = providerRegistry.supports(screen),
+      hasControllerForRequestedScreen = providerRegistry.hasControllerFor(screen),
     )
     binding.homeScreen.isVisible = currentScreen is AppScreen.Home
     providerRegistry.render(currentScreen)
@@ -110,7 +110,7 @@ class MainActivity : AppCompatActivity(), AppScreenHost {
   private fun setupBackPressHandler() {
     onBackPressedDispatcher.addCallback(this) {
       when {
-        providerRegistry.handleBackPress() -> Unit
+        providerRegistry.handleBackPress(currentScreen) -> Unit
         currentScreen is AppScreen.Home -> {
           // Temporarily step aside so Android can handle the real activity back press.
           isEnabled = false
@@ -205,11 +205,11 @@ internal fun resolveHomeSubtitleTextResId(hasActiveProviders: Boolean): Int {
 
 internal fun normalizeAppShellScreen(
   requestedScreen: AppScreen,
-  supportsRequestedScreen: Boolean,
+  hasControllerForRequestedScreen: Boolean,
 ): AppScreen {
   return when {
     requestedScreen is AppScreen.Home -> requestedScreen
-    supportsRequestedScreen -> requestedScreen
+    hasControllerForRequestedScreen -> requestedScreen
     else -> AppScreen.Home
   }
 }

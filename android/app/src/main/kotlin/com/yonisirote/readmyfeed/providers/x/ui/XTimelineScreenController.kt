@@ -18,12 +18,11 @@ import com.yonisirote.readmyfeed.providers.x.timeline.mergeTimelineItems
 import com.yonisirote.readmyfeed.providers.x.timeline.shouldClearXTimelineSession
 import com.yonisirote.readmyfeed.providers.x.timeline.shouldPrefetchTimeline
 import com.yonisirote.readmyfeed.shell.XDestination
-import com.yonisirote.readmyfeed.tts.TtsException
+import com.yonisirote.readmyfeed.tts.ScreenPlaybackController
+import com.yonisirote.readmyfeed.tts.TtsPlaybackSummary
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 internal class XTimelineScreenController(
   private val activity: AppCompatActivity,
@@ -46,9 +45,42 @@ internal class XTimelineScreenController(
   private var isSpeakingFeed = false
   private var lastFeedLoadErrorMessage: String? = null
   private var fetchJob: Job? = null
-  private var speakJob: Job? = null
+  private lateinit var playbackController: ScreenPlaybackController<XTimelineItem>
 
   fun initialize() {
+    playbackController = ScreenPlaybackController(
+      coroutineScope = activity.lifecycleScope,
+      hasSpeakableItems = timelineSpeechPlayer::hasSpeakableItems,
+      speak = timelineSpeechPlayer::speak,
+      stopPlayback = timelineSpeechPlayer::stop,
+      renderLoadingStatus = {
+        binding.speechStatusTextView.text = activity.getString(R.string.feed_speech_status_loading)
+      },
+      renderProgressStatus = { index, total ->
+        activity.runOnUiThread {
+          if (isSpeakingFeed) {
+            binding.speechStatusTextView.text = activity.getString(
+              R.string.feed_speech_status_playing,
+              index,
+              total,
+            )
+          }
+        }
+      },
+      renderNoItemsStatus = {
+        binding.speechStatusTextView.text = activity.getString(R.string.feed_speech_status_no_items)
+      },
+      renderFinishedStatus = { summary ->
+        binding.speechStatusTextView.text = resolveFeedPlaybackFinishedStatus(summary)
+      },
+      renderErrorStatus = { message ->
+        binding.speechStatusTextView.text = buildFeedSpeechErrorMessage(message)
+      },
+      onPlaybackStateChanged = { isPlaying ->
+        isSpeakingFeed = isPlaying
+        updateSpeechControls()
+      },
+    )
     setupRecyclerView()
     setupFeedScreen()
     updateFeedControls()
@@ -135,8 +167,7 @@ internal class XTimelineScreenController(
 
   fun onDestroy() {
     fetchJob?.cancel()
-    speakJob?.cancel()
-    timelineSpeechPlayer.stop()
+    playbackController.shutdown()
     timelineSpeechPlayer.shutdown()
     binding.feedRecyclerView.adapter = null
   }
@@ -216,7 +247,7 @@ internal class XTimelineScreenController(
     feedAdapter.submitList(timelineItems)
 
     if (!isContentListVisible()) {
-      showProviderScreen(XDestination.CONTENT_LIST)
+      showProviderScreen(XDestination.ContentList)
     }
 
     binding.speechStatusTextView.text = when {
@@ -305,76 +336,22 @@ internal class XTimelineScreenController(
       return
     }
 
-    speakJob?.cancel()
-    speakJob = activity.lifecycleScope.launch {
-      isSpeakingFeed = true
-      updateSpeechControls()
-      binding.speechStatusTextView.text = activity.getString(R.string.feed_speech_status_loading)
-
-      try {
-        val summary = withContext(Dispatchers.IO) {
-          timelineSpeechPlayer.speak(timelineItems) { _, index, total ->
-            activity.runOnUiThread {
-              if (isSpeakingFeed) {
-                binding.speechStatusTextView.text = activity.getString(
-                  R.string.feed_speech_status_playing,
-                  index,
-                  total,
-                )
-              }
-            }
-          }
-        }
-
-        if (!isSpeakingFeed) {
-          return@launch
-        }
-
-        binding.speechStatusTextView.text = when {
-          summary.spokenItems <= 0 -> activity.getString(R.string.feed_speech_status_no_items)
-          summary.skippedItems > 0 -> activity.getString(
-            R.string.feed_speech_status_skipped,
-            summary.spokenItems,
-            summary.skippedItems,
-          )
-          else -> activity.getString(R.string.feed_speech_status_done, summary.spokenItems)
-        }
-      } catch (error: CancellationException) {
-        throw error
-      } catch (error: Exception) {
-        if (isSpeakingFeed) {
-          val message = if (error is TtsException) {
-            error.message
-          } else {
-            error.message ?: "Unknown error."
-          }
-          binding.speechStatusTextView.text = buildFeedSpeechErrorMessage(message)
-        }
-      } finally {
-        isSpeakingFeed = false
-        speakJob = null
-        updateSpeechControls()
-      }
-    }
+    playbackController.start(timelineItems)
   }
 
   private fun stopFeedPlayback(status: String?) {
-    speakJob?.cancel()
-    speakJob = null
-    timelineSpeechPlayer.stop()
-    isSpeakingFeed = false
-    updateSpeechControls()
-
-    if (status != null) {
-      binding.speechStatusTextView.text = status
-    }
+    playbackController.stop(
+      status = status?.let { message ->
+        { binding.speechStatusTextView.text = message }
+      },
+    )
   }
 
   private fun showFeedError(message: String) {
     stopFeedPlayback(null)
 
     if (!isContentListVisible()) {
-      showProviderScreen(XDestination.CONTENT_LIST)
+      showProviderScreen(XDestination.ContentList)
     }
 
     Toast.makeText(activity, message, Toast.LENGTH_LONG).show()
@@ -395,5 +372,17 @@ internal class XTimelineScreenController(
 
   private fun buildFeedSpeechErrorMessage(message: String?): String {
     return activity.getString(R.string.feed_speech_status_error_prefix) + " " + (message ?: "Unknown error.")
+  }
+
+  private fun resolveFeedPlaybackFinishedStatus(summary: TtsPlaybackSummary): String {
+    return when {
+      summary.spokenItems <= 0 -> activity.getString(R.string.feed_speech_status_no_items)
+      summary.skippedItems > 0 -> activity.getString(
+        R.string.feed_speech_status_skipped,
+        summary.spokenItems,
+        summary.skippedItems,
+      )
+      else -> activity.getString(R.string.feed_speech_status_done, summary.spokenItems)
+    }
   }
 }

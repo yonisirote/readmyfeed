@@ -10,6 +10,8 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 class TelegramClientManagerTest {
   @Test
@@ -258,6 +260,63 @@ class TelegramClientManagerTest {
 
     assertEquals(TelegramClientErrorCodes.CALLBACK_FAILED, manager.snapshot.value.lastError?.code)
     assertEquals("boom", manager.snapshot.value.lastError?.message)
+  }
+
+  @Test
+  fun callbackExceptionDoesNotOverwriteNewerAuthState() {
+    val releaseExceptionMessage = CountDownLatch(1)
+    val exceptionMessageStarted = CountDownLatch(1)
+    val manager = TelegramClientManager(
+      clientFactory = FakeTelegramTdlibClientFactory(),
+      parametersFactory = TelegramTdlibParametersFactory { TdApi.SetTdlibParameters() },
+    )
+
+    val callbackThread = Thread {
+      manager.handleExceptionForTesting(
+        BlockingThrowable {
+          exceptionMessageStarted.countDown()
+          assertTrue(releaseExceptionMessage.await(5, TimeUnit.SECONDS))
+          "boom"
+        },
+      )
+    }
+    callbackThread.start()
+    assertTrue(exceptionMessageStarted.await(5, TimeUnit.SECONDS))
+
+    manager.handleUpdateForTesting(TdApi.UpdateAuthorizationState(TdApi.AuthorizationStateWaitPhoneNumber()))
+    releaseExceptionMessage.countDown()
+    callbackThread.join(5000)
+
+    assertFalse(callbackThread.isAlive)
+    assertEquals(TelegramAuthState.WaitPhoneNumber, manager.snapshot.value.authState)
+    assertEquals(TelegramClientErrorCodes.CALLBACK_FAILED, manager.snapshot.value.lastError?.code)
+  }
+
+  @Test
+  fun callbackExceptionWhileChatListLoadsMarksChatListError() {
+    val factory = FakeTelegramTdlibClientFactory()
+    val manager = TelegramClientManager(
+      clientFactory = factory,
+      parametersFactory = TelegramTdlibParametersFactory { TdApi.SetTdlibParameters() },
+    )
+
+    manager.start()
+    manager.handleUpdateForTesting(TdApi.UpdateAuthorizationState(TdApi.AuthorizationStateReady()))
+    factory.client.blockNextResult = true
+
+    manager.loadChatList()
+    manager.handleExceptionForTesting(IllegalStateException("chat callback failed"))
+
+    assertTrue(manager.snapshot.value.isChatListLoading)
+    assertEquals(TelegramClientErrorCodes.CALLBACK_FAILED, manager.snapshot.value.chatListError?.code)
+    assertEquals("chat callback failed", manager.snapshot.value.chatListError?.message)
+    assertEquals(TelegramClientErrorCodes.CALLBACK_FAILED, manager.snapshot.value.lastError?.code)
+
+    factory.client.dispatchPendingResult(TdApi.Ok())
+
+    assertFalse(manager.snapshot.value.isChatListLoading)
+    assertNull(manager.snapshot.value.chatListError)
+    assertNull(manager.snapshot.value.lastError)
   }
 
   @Test
@@ -837,6 +896,13 @@ class TelegramClientManagerTest {
       client.exceptionHandler = exceptionHandler
       return client
     }
+  }
+
+  private class BlockingThrowable(
+    private val resolveMessage: () -> String,
+  ) : Throwable() {
+    override val message: String?
+      get() = resolveMessage()
   }
 
   private class FakeTelegramTdlibClient : TelegramTdlibClient {

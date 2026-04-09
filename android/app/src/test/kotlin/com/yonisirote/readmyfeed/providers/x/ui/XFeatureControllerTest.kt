@@ -1,5 +1,6 @@
 package com.yonisirote.readmyfeed.providers.x.ui
 
+import android.os.Looper
 import androidx.appcompat.app.AppCompatActivity
 import com.yonisirote.readmyfeed.R
 import com.yonisirote.readmyfeed.databinding.ActivityMainBinding
@@ -12,8 +13,7 @@ import com.yonisirote.readmyfeed.providers.x.auth.XSessionStore
 import com.yonisirote.readmyfeed.providers.x.speech.XTimelineSpeechPlayer
 import com.yonisirote.readmyfeed.providers.x.timeline.XTimelineService
 import com.yonisirote.readmyfeed.shell.AppScreen
-import com.yonisirote.readmyfeed.shell.AppScreenHost
-import com.yonisirote.readmyfeed.shell.TelegramDestination
+import com.yonisirote.readmyfeed.shell.ProviderDestination
 import com.yonisirote.readmyfeed.shell.XDestination
 import com.yonisirote.readmyfeed.tts.TtsEngine
 import com.yonisirote.readmyfeed.tts.TtsService
@@ -26,27 +26,30 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows
 
 @RunWith(RobolectricTestRunner::class)
 class XFeatureControllerTest {
   @Test
-  fun supportsConnectAndContentListScreens() {
+  fun hideClearsXScreens() {
     val setup = buildController()
 
-    assertTrue(setup.controller.supports(AppScreen.XScreen(XDestination.CONNECT)))
-    assertTrue(setup.controller.supports(AppScreen.XScreen(XDestination.CONTENT_LIST)))
-    assertFalse(setup.controller.supports(AppScreen.TelegramScreen(TelegramDestination.CHAT_LIST)))
+    setup.controller.render(AppScreen.XScreen(ProviderDestination.Connect))
+    setup.controller.hide()
+
+    assertFalse(setup.binding.xSignInScreen.isShown)
+    assertFalse(setup.binding.feedScreen.isShown)
   }
 
   @Test
   fun renderShowsOnlyRequestedXScreen() {
     val setup = buildController()
 
-    setup.controller.render(AppScreen.XScreen(XDestination.CONNECT))
+    setup.controller.render(AppScreen.XScreen(ProviderDestination.Connect))
     assertTrue(setup.binding.xSignInScreen.isShown)
     assertFalse(setup.binding.feedScreen.isShown)
 
-    setup.controller.render(AppScreen.XScreen(XDestination.CONTENT_LIST))
+    setup.controller.render(AppScreen.XScreen(XDestination.ContentList))
     assertTrue(setup.binding.feedScreen.isShown)
     assertFalse(setup.binding.xSignInScreen.isShown)
   }
@@ -54,30 +57,62 @@ class XFeatureControllerTest {
   @Test
   fun handleBackPressFromContentListReturnsHome() {
     val setup = buildController()
-    setup.controller.render(AppScreen.XScreen(XDestination.CONTENT_LIST))
+    setup.controller.render(AppScreen.XScreen(XDestination.ContentList))
 
     assertTrue(setup.controller.handleBackPress())
     assertEquals(
       AppScreen.Home,
-      setup.screenHost.shownScreens.last(),
+      setup.shownScreens.last(),
     )
   }
 
-  private fun buildController(): ControllerSetup {
+  @Test
+  fun handleBackPressReturnsFalseWhenInactive() {
+    val setup = buildController()
+
+    assertFalse(setup.controller.handleBackPress())
+  }
+
+  @Test
+  fun openFromHomeWithoutStoredSessionStartsConnectFlow() {
+    val setup = buildController()
+
+    setup.controller.openFromHome()
+    Shadows.shadowOf(Looper.getMainLooper()).idle()
+
+    assertEquals(
+      AppScreen.XScreen(ProviderDestination.Connect),
+      setup.shownScreens.last(),
+    )
+  }
+
+  @Test
+  fun openFromHomeWithStoredSessionShowsContentList() {
+    val setup = buildController(storedSession = "auth_token=present")
+
+    setup.controller.openFromHome()
+
+    assertEquals(
+      AppScreen.XScreen(XDestination.ContentList),
+      setup.shownScreens.last(),
+    )
+  }
+
+  private fun buildController(storedSession: String? = null): ControllerSetup {
     val activity = Robolectric.buildActivity(AppCompatActivity::class.java).setup().get()
     activity.setTheme(R.style.Theme_ReadMyFeed)
     val binding = ActivityMainBinding.inflate(activity.layoutInflater)
     activity.setContentView(binding.root)
-    val screenHost = RecordingScreenHost()
+    val shownScreens = mutableListOf<AppScreen>()
     val authService = XAuthService(
       cookieReader = FakeXCookieReader(),
-      sessionStore = FakeXSessionStore(),
+      sessionStore = FakeXSessionStore(storedSession),
     )
     val ttsService = TtsService(FakeTtsEngine())
     val controller = XFeatureController(
       activity = activity,
       binding = binding,
-      screenHost = screenHost,
+      showScreen = { screen -> shownScreens += screen },
       dependenciesFactory = {
         XFeatureDependencies(
           authService = authService,
@@ -93,25 +128,17 @@ class XFeatureControllerTest {
     return ControllerSetup(
       activity = activity,
       binding = binding,
-      screenHost = screenHost,
       controller = controller,
+      shownScreens = shownScreens,
     )
   }
 
   private data class ControllerSetup(
     val activity: AppCompatActivity,
     val binding: ActivityMainBinding,
-    val screenHost: RecordingScreenHost,
     val controller: XFeatureController,
+    val shownScreens: MutableList<AppScreen>,
   )
-
-  private class RecordingScreenHost : AppScreenHost {
-    val shownScreens = mutableListOf<AppScreen>()
-
-    override fun showScreen(screen: AppScreen) {
-      shownScreens += screen
-    }
-  }
 
   private class FakeXCookieReader : XCookieReader {
     override fun readCookies(): XCookieReadResult {
@@ -124,8 +151,8 @@ class XFeatureControllerTest {
     }
   }
 
-  private class FakeXSessionStore : XSessionStore {
-    private var cookieString: String? = null
+  private class FakeXSessionStore(initialCookieString: String? = null) : XSessionStore {
+    private var cookieString: String? = initialCookieString
 
     override fun get(): String? {
       return cookieString

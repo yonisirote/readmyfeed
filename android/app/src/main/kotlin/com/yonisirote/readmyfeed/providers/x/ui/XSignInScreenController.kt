@@ -20,6 +20,7 @@ import com.yonisirote.readmyfeed.providers.x.auth.XAuthService
 import com.yonisirote.readmyfeed.providers.x.auth.XLoginCaptureCoordinator
 import com.yonisirote.readmyfeed.providers.x.auth.X_LOGIN_URL
 import com.yonisirote.readmyfeed.providers.x.auth.clearXWebViewCookies
+import com.yonisirote.readmyfeed.shell.ProviderDestination
 import com.yonisirote.readmyfeed.shell.XDestination
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -60,7 +61,7 @@ internal class XSignInScreenController(
         clearXWebViewCookies()
       }
 
-      showProviderScreen(XDestination.CONNECT)
+      showProviderScreen(ProviderDestination.Connect)
       hideSignInStatus()
       binding.xWebView.stopLoading()
 
@@ -177,7 +178,7 @@ internal class XSignInScreenController(
         }
 
         didCapture = true
-        showProviderScreen(XDestination.CONTENT_LIST)
+        showProviderScreen(XDestination.ContentList)
         onSessionCaptured(session.cookieString)
       } catch (error: XAuthException) {
         if (!strict && error.code == XAuthErrorCodes.COOKIE_MISSING_REQUIRED) {

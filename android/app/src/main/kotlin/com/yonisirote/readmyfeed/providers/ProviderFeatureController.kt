@@ -7,9 +7,9 @@ interface ProviderFeatureController {
 
   fun initialize(): Boolean
 
-  fun supports(screen: AppScreen): Boolean
-
   fun render(screen: AppScreen)
+
+  fun hide()
 
   fun openFromHome()
 

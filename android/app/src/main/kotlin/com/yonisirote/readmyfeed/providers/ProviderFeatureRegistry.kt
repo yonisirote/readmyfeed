@@ -10,6 +10,7 @@ class ProviderFeatureRegistry(
     orderedControllers.associateBy { it.provider }
   private val activeControllers = mutableListOf<ProviderFeatureController>()
   private val activeControllersByProvider = mutableMapOf<FeedProvider, ProviderFeatureController>()
+  private var renderedProvider: FeedProvider? = null
 
   init {
     require(controllersByProvider.size == orderedControllers.size) {
@@ -20,6 +21,7 @@ class ProviderFeatureRegistry(
   fun initializeAll() {
     activeControllers.clear()
     activeControllersByProvider.clear()
+    renderedProvider = null
 
     for (controller in orderedControllers) {
       if (controller.initialize()) {
@@ -37,15 +39,29 @@ class ProviderFeatureRegistry(
     return activeControllers.isNotEmpty()
   }
 
-  fun supports(screen: AppScreen): Boolean {
-    return activeControllers.any { controller -> controller.supports(screen) }
+  fun hasControllerFor(screen: AppScreen): Boolean {
+    val provider = screen.owner ?: return true
+    return activeControllersByProvider.containsKey(provider)
   }
 
   fun render(screen: AppScreen) {
-    // Each active controller owns part of the shared layout and decides its own visibility.
-    for (controller in activeControllers) {
-      controller.render(screen)
+    val provider = screen.owner
+    if (renderedProvider != null && renderedProvider != provider) {
+      activeControllersByProvider[renderedProvider]?.hide()
     }
+
+    if (provider == null) {
+      renderedProvider = null
+      return
+    }
+
+    val controller = activeControllersByProvider[provider] ?: run {
+      renderedProvider = null
+      return
+    }
+
+    controller.render(screen)
+    renderedProvider = provider
   }
 
   fun openFromHome(provider: FeedProvider): Boolean {
@@ -54,8 +70,10 @@ class ProviderFeatureRegistry(
     return true
   }
 
-  fun handleBackPress(): Boolean {
-    return activeControllers.any { controller -> controller.handleBackPress() }
+  fun handleBackPress(screen: AppScreen): Boolean {
+    val provider = screen.owner ?: return false
+    val controller = activeControllersByProvider[provider] ?: return false
+    return controller.handleBackPress()
   }
 
   fun onDestroy() {

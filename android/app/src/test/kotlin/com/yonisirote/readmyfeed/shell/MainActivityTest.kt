@@ -17,12 +17,11 @@ import org.robolectric.RobolectricTestRunner
 @RunWith(RobolectricTestRunner::class)
 class MainActivityTest {
   @Test
-  fun showScreenKeepsSupportedProviderScreen() {
+  fun showScreenKeepsProviderScreenWhenOwnerIsRegistered() {
     val activity = Robolectric.buildActivity(MainActivity::class.java).setup().get()
-    val supportedScreen = AppScreen.XScreen(XDestination.CONTENT_LIST)
+    val supportedScreen = AppScreen.XScreen(XDestination.ContentList)
     val controller = RecordingProviderFeatureController(
       provider = FeedProvider.X,
-      supportedScreens = setOf(supportedScreen),
     )
 
     activity.replaceProviderRegistry(ProviderFeatureRegistry(listOf(controller)))
@@ -33,18 +32,18 @@ class MainActivityTest {
   }
 
   @Test
-  fun showScreenFallsBackToHomeForUnsupportedProviderScreen() {
+  fun showScreenFallsBackToHomeWhenOwnerIsMissing() {
     val activity = Robolectric.buildActivity(MainActivity::class.java).setup().get()
-    val unsupportedScreen = AppScreen.TelegramScreen(TelegramDestination.CHAT_MESSAGES)
+    val unsupportedScreen = AppScreen.TelegramScreen(TelegramDestination.ChatMessages)
     val controller = RecordingProviderFeatureController(
       provider = FeedProvider.X,
-      supportedScreens = setOf(AppScreen.XScreen(XDestination.CONNECT)),
     )
 
     activity.replaceProviderRegistry(ProviderFeatureRegistry(listOf(controller)))
     activity.showScreen(unsupportedScreen)
 
-    assertEquals(listOf(AppScreen.Home), controller.renderedScreens)
+    assertTrue(controller.renderedScreens.isEmpty())
+    assertEquals(0, controller.hideCalls)
     assertTrue(activity.findViewById<View>(R.id.homeScreen).isVisible)
   }
 
@@ -58,20 +57,20 @@ class MainActivityTest {
 
 private class RecordingProviderFeatureController(
   override val provider: FeedProvider,
-  private val supportedScreens: Set<AppScreen>,
 ) : ProviderFeatureController {
   val renderedScreens = mutableListOf<AppScreen>()
+  var hideCalls: Int = 0
 
   override fun initialize(): Boolean {
     return true
   }
 
-  override fun supports(screen: AppScreen): Boolean {
-    return supportedScreens.contains(screen)
-  }
-
   override fun render(screen: AppScreen) {
     renderedScreens += screen
+  }
+
+  override fun hide() {
+    hideCalls += 1
   }
 
   override fun openFromHome() = Unit

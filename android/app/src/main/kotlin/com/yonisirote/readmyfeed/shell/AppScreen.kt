@@ -2,51 +2,35 @@ package com.yonisirote.readmyfeed.shell
 
 import com.yonisirote.readmyfeed.providers.FeedProvider
 
-enum class XDestination {
-  CONNECT,
-  CONTENT_LIST,
+sealed interface ProviderDestination {
+  data object Connect : XDestination, TelegramDestination
 }
 
-enum class TelegramDestination {
-  CONNECT,
-  CHAT_LIST,
-  CHAT_MESSAGES,
+sealed interface XDestination : ProviderDestination {
+  data object ContentList : XDestination
+}
+
+sealed interface TelegramDestination : ProviderDestination {
+  data object ChatList : TelegramDestination
+  data object ChatMessages : TelegramDestination
 }
 
 sealed interface AppScreen {
-  data object Home : AppScreen
+  val owner: FeedProvider?
+
+  data object Home : AppScreen {
+    override val owner: FeedProvider? = null
+  }
 
   data class XScreen(
     val destination: XDestination,
-  ) : AppScreen
+  ) : AppScreen {
+    override val owner: FeedProvider = FeedProvider.X
+  }
 
   data class TelegramScreen(
     val destination: TelegramDestination,
-  ) : AppScreen
-}
-
-fun resolveHomeSelectionScreen(
-  provider: FeedProvider,
-  hasStoredSession: Boolean,
-): AppScreen {
-  // Home cards route to connect or content based on provider availability and session state.
-  if (!provider.isAvailable) {
-    return AppScreen.Home
-  }
-
-  return when (provider) {
-    FeedProvider.X -> AppScreen.XScreen(
-      destination = if (hasStoredSession) XDestination.CONTENT_LIST else XDestination.CONNECT,
-    )
-    FeedProvider.TELEGRAM -> AppScreen.TelegramScreen(
-      destination = if (hasStoredSession) {
-        TelegramDestination.CHAT_LIST
-      } else {
-        TelegramDestination.CONNECT
-      },
-    )
-    FeedProvider.WHATSAPP,
-    FeedProvider.FACEBOOK,
-    -> AppScreen.Home
+  ) : AppScreen {
+    override val owner: FeedProvider = FeedProvider.TELEGRAM
   }
 }

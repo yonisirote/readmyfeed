@@ -13,6 +13,7 @@ import com.yonisirote.readmyfeed.providers.telegram.messages.buildUnreadTelegram
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import org.drinkless.tdlib.TdApi
 
 class TelegramClientManager(
@@ -67,11 +68,13 @@ class TelegramClientManager(
       return
     }
 
-    snapshotState.value = currentSnapshot.copy(
-      isChatListLoading = true,
-      chatListError = null,
-      lastError = null,
-    )
+    updateSnapshot { snapshot ->
+      snapshot.copy(
+        isChatListLoading = true,
+        chatListError = null,
+        lastError = null,
+      )
+    }
 
     activeClient.send(TdApi.LoadChats(TdApi.ChatListMain(), limit)) { result ->
       handleLoadChatsResult(result)
@@ -100,15 +103,17 @@ class TelegramClientManager(
       selectedChatId = chatId
     }
 
-    snapshotState.value = snapshot.value.copy(
-      selectedChatPreview = resolveSelectedChatPreview(chatId, selectedPreview),
-      selectedChatMessages = emptyList(),
-      chatMessagesError = null,
-      isChatMessagesLoading = false,
-      hasLoadedChatMessages = false,
-      chatListError = snapshot.value.chatListError,
-      lastError = null,
-    )
+    updateSnapshot { snapshot ->
+      snapshot.copy(
+        selectedChatPreview = resolveSelectedChatPreview(chatId, selectedPreview),
+        selectedChatMessages = emptyList(),
+        chatMessagesError = null,
+        isChatMessagesLoading = false,
+        hasLoadedChatMessages = false,
+        chatListError = snapshot.chatListError,
+        lastError = null,
+      )
+    }
 
     loadSelectedChatMessages(limit)
   }
@@ -132,13 +137,15 @@ class TelegramClientManager(
       return
     }
 
-    snapshotState.value = currentSnapshot.copy(
-      selectedChatPreview = resolveSelectedChatPreview(chatId, currentSnapshot.selectedChatPreview),
-      chatMessagesError = null,
-      isChatMessagesLoading = true,
-      chatListError = currentSnapshot.chatListError,
-      lastError = null,
-    )
+    updateSnapshot { snapshot ->
+      snapshot.copy(
+        selectedChatPreview = resolveSelectedChatPreview(chatId, snapshot.selectedChatPreview),
+        chatMessagesError = null,
+        isChatMessagesLoading = true,
+        chatListError = snapshot.chatListError,
+        lastError = null,
+      )
+    }
 
     activeClient.send(
       TdApi.GetChatHistory(chatId, 0L, 0, limit.coerceIn(1, MAX_CHAT_MESSAGES_LIMIT), false),
@@ -152,15 +159,17 @@ class TelegramClientManager(
       clearChatSelectionLocked()
     }
 
-    snapshotState.value = snapshot.value.copy(
-      selectedChatPreview = null,
-      selectedChatMessages = emptyList(),
-      chatMessagesError = null,
-      isChatMessagesLoading = false,
-      hasLoadedChatMessages = false,
-      chatListError = snapshot.value.chatListError,
-      lastError = null,
-    )
+    updateSnapshot { snapshot ->
+      snapshot.copy(
+        selectedChatPreview = null,
+        selectedChatMessages = emptyList(),
+        chatMessagesError = null,
+        isChatMessagesLoading = false,
+        hasLoadedChatMessages = false,
+        chatListError = snapshot.chatListError,
+        lastError = null,
+      )
+    }
   }
 
   fun submitPhoneNumber(phoneNumber: String): Unit {
@@ -451,26 +460,30 @@ class TelegramClientManager(
     if (mappedState !is TelegramAuthState.Ready) {
       // Chat and message state is session-scoped, so drop it whenever auth leaves Ready.
       clearCachedState()
-      snapshotState.value = snapshot.value.copy(
-        authState = mappedState,
-        lastError = null,
-        chatListError = null,
-        chatPreviews = emptyList(),
-        isChatListLoading = false,
-        hasLoadedChatList = false,
-        hasLoadedAllChats = false,
-        selectedChatPreview = null,
-        selectedChatMessages = emptyList(),
-        chatMessagesError = null,
-        isChatMessagesLoading = false,
-        hasLoadedChatMessages = false,
-      )
+      updateSnapshot { snapshot ->
+        snapshot.copy(
+          authState = mappedState,
+          lastError = null,
+          chatListError = null,
+          chatPreviews = emptyList(),
+          isChatListLoading = false,
+          hasLoadedChatList = false,
+          hasLoadedAllChats = false,
+          selectedChatPreview = null,
+          selectedChatMessages = emptyList(),
+          chatMessagesError = null,
+          isChatMessagesLoading = false,
+          hasLoadedChatMessages = false,
+        )
+      }
     } else {
-      snapshotState.value = snapshot.value.copy(
-        authState = mappedState,
-        lastError = null,
-        chatListError = null,
-      )
+      updateSnapshot { snapshot ->
+        snapshot.copy(
+          authState = mappedState,
+          lastError = null,
+          chatListError = null,
+        )
+      }
     }
 
     if (state is TdApi.AuthorizationStateWaitTdlibParameters) {
@@ -478,13 +491,15 @@ class TelegramClientManager(
       val parameters = try {
         parametersFactory.create()
       } catch (error: TelegramClientException) {
-        snapshotState.value = snapshot.value.copy(
-          lastError = TelegramClientError(
-            code = error.code,
-            message = error.message ?: "Failed to create TDLib parameters.",
-            context = error.context,
-          ),
-        )
+        updateSnapshot { snapshot ->
+          snapshot.copy(
+            lastError = TelegramClientError(
+              code = error.code,
+              message = error.message ?: "Failed to create TDLib parameters.",
+              context = error.context,
+            ),
+          )
+        }
         return
       }
 
@@ -516,22 +531,26 @@ class TelegramClientManager(
 
   private fun handleLoadChatsResult(result: TdApi.Object): Unit {
     when (result) {
-      is TdApi.Ok -> snapshotState.value = snapshot.value.copy(
-        isChatListLoading = false,
-        hasLoadedChatList = true,
-        chatListError = null,
-        lastError = null,
-      )
+      is TdApi.Ok -> updateSnapshot { snapshot ->
+        snapshot.copy(
+          isChatListLoading = false,
+          hasLoadedChatList = true,
+          chatListError = null,
+          lastError = null,
+        )
+      }
       is TdApi.Error -> {
         // TDLib uses 404 here to mean there are no more chats to page in.
         if (result.code == TELEGRAM_CHAT_LIST_COMPLETE_ERROR_CODE) {
-          snapshotState.value = snapshot.value.copy(
-            isChatListLoading = false,
-            hasLoadedChatList = true,
-            hasLoadedAllChats = true,
-            chatListError = null,
-            lastError = null,
-          )
+          updateSnapshot { snapshot ->
+            snapshot.copy(
+              isChatListLoading = false,
+              hasLoadedChatList = true,
+              hasLoadedAllChats = true,
+              chatListError = null,
+              lastError = null,
+            )
+          }
         } else {
           val error = TelegramClientError(
             code = TelegramClientErrorCodes.REQUEST_FAILED,
@@ -541,12 +560,14 @@ class TelegramClientManager(
               "tdErrorCode" to result.code,
             ),
           )
-          snapshotState.value = snapshot.value.copy(
-            isChatListLoading = false,
-            hasLoadedChatList = true,
-            chatListError = error,
-            lastError = error,
-          )
+          updateSnapshot { snapshot ->
+            snapshot.copy(
+              isChatListLoading = false,
+              hasLoadedChatList = true,
+              chatListError = error,
+              lastError = error,
+            )
+          }
         }
       }
       else -> {
@@ -558,12 +579,14 @@ class TelegramClientManager(
             "responseType" to result::class.java.simpleName,
           ),
         )
-        snapshotState.value = snapshot.value.copy(
-          isChatListLoading = false,
-          hasLoadedChatList = true,
-          chatListError = error,
-          lastError = error,
-        )
+        updateSnapshot { snapshot ->
+          snapshot.copy(
+            isChatListLoading = false,
+            hasLoadedChatList = true,
+            chatListError = error,
+            lastError = error,
+          )
+        }
       }
     }
   }
@@ -573,27 +596,33 @@ class TelegramClientManager(
     result: TdApi.Object,
   ): Unit {
     when (result) {
-      is TdApi.Ok -> snapshotState.value = snapshot.value.copy(lastError = null)
-      is TdApi.Error -> snapshotState.value = snapshot.value.copy(
-        lastError = TelegramClientError(
-          code = TelegramClientErrorCodes.REQUEST_FAILED,
-          message = result.message.orEmpty(),
-          context = mapOf(
-            "request" to requestName,
-            "tdErrorCode" to result.code,
+      is TdApi.Ok -> updateSnapshot { snapshot ->
+        snapshot.copy(lastError = null)
+      }
+      is TdApi.Error -> updateSnapshot { snapshot ->
+        snapshot.copy(
+          lastError = TelegramClientError(
+            code = TelegramClientErrorCodes.REQUEST_FAILED,
+            message = result.message.orEmpty(),
+            context = mapOf(
+              "request" to requestName,
+              "tdErrorCode" to result.code,
+            ),
           ),
-        ),
-      )
-      else -> snapshotState.value = snapshot.value.copy(
-        lastError = TelegramClientError(
-          code = TelegramClientErrorCodes.UNEXPECTED_RESPONSE,
-          message = "TDLib returned an unexpected response for $requestName.",
-          context = mapOf(
-            "request" to requestName,
-            "responseType" to result::class.java.simpleName,
+        )
+      }
+      else -> updateSnapshot { snapshot ->
+        snapshot.copy(
+          lastError = TelegramClientError(
+            code = TelegramClientErrorCodes.UNEXPECTED_RESPONSE,
+            message = "TDLib returned an unexpected response for $requestName.",
+            context = mapOf(
+              "request" to requestName,
+              "responseType" to result::class.java.simpleName,
+            ),
           ),
-        ),
-      )
+        )
+      }
     }
   }
 
@@ -663,18 +692,19 @@ class TelegramClientManager(
   }
 
   private fun handleTdlibException(error: Throwable): Unit {
-    val currentSnapshot = snapshot.value
     val mappedError = TelegramClientError(
       code = TelegramClientErrorCodes.CALLBACK_FAILED,
       message = error.message ?: error::class.java.simpleName,
       context = mapOf("exceptionType" to error::class.java.name),
     )
 
-    snapshotState.value = currentSnapshot.copy(
-      lastError = mappedError,
-      chatListError = if (currentSnapshot.isChatListLoading) mappedError else currentSnapshot.chatListError,
-      chatMessagesError = if (currentSnapshot.isChatMessagesLoading) mappedError else currentSnapshot.chatMessagesError,
-    )
+    updateSnapshot { snapshot ->
+      snapshot.copy(
+        lastError = mappedError,
+        chatListError = if (snapshot.isChatListLoading) mappedError else snapshot.chatListError,
+        chatMessagesError = if (snapshot.isChatMessagesLoading) mappedError else snapshot.chatMessagesError,
+      )
+    }
   }
 
   private fun canRequestQrCodeAuthentication(authState: TelegramAuthState): Boolean {
@@ -826,21 +856,34 @@ class TelegramClientManager(
       )
     }
 
-    val currentSnapshot = snapshot.value
-    snapshotState.value = currentSnapshot.copy(
-      chatPreviews = chatPreviews,
-      hasLoadedChatList = currentSnapshot.hasLoadedChatList || chatPreviews.isNotEmpty(),
-      selectedChatPreview = selectedChatPreview,
-      selectedChatMessages = selectedChatMessages,
-      lastError = currentSnapshot.chatMessagesError ?: currentSnapshot.chatListError ?: currentSnapshot.lastError,
-    )
+    updateSnapshot { snapshot ->
+      snapshot.copy(
+        chatPreviews = chatPreviews,
+        hasLoadedChatList = snapshot.hasLoadedChatList || chatPreviews.isNotEmpty(),
+        selectedChatPreview = selectedChatPreview,
+        selectedChatMessages = selectedChatMessages,
+        lastError = snapshot.chatMessagesError ?: snapshot.chatListError ?: snapshot.lastError,
+      )
+    }
   }
 
   private fun publishSelectedChatMessages(
     chatId: Long? = null,
-    error: TelegramClientError? = snapshot.value.chatMessagesError,
-    isLoading: Boolean = snapshot.value.isChatMessagesLoading,
-    hasLoaded: Boolean = snapshot.value.hasLoadedChatMessages,
+  ): Unit {
+    val currentSnapshot = snapshot.value
+    publishSelectedChatMessages(
+      chatId = chatId,
+      error = currentSnapshot.chatMessagesError,
+      isLoading = currentSnapshot.isChatMessagesLoading,
+      hasLoaded = currentSnapshot.hasLoadedChatMessages,
+    )
+  }
+
+  private fun publishSelectedChatMessages(
+    chatId: Long?,
+    error: TelegramClientError?,
+    isLoading: Boolean,
+    hasLoaded: Boolean,
   ): Unit {
     val currentSnapshot = snapshot.value
     val selectedPreviewAndMessages = synchronized(lock) {
@@ -857,14 +900,16 @@ class TelegramClientManager(
       return
     }
 
-    snapshotState.value = currentSnapshot.copy(
-      selectedChatPreview = selectedPreviewAndMessages.first,
-      selectedChatMessages = selectedPreviewAndMessages.second,
-      chatMessagesError = error,
-      isChatMessagesLoading = isLoading,
-      hasLoadedChatMessages = hasLoaded,
-      lastError = error ?: currentSnapshot.lastError,
-    )
+    updateSnapshot { snapshot ->
+      snapshot.copy(
+        selectedChatPreview = selectedPreviewAndMessages.first,
+        selectedChatMessages = selectedPreviewAndMessages.second,
+        chatMessagesError = error,
+        isChatMessagesLoading = isLoading,
+        hasLoadedChatMessages = hasLoaded,
+        lastError = error ?: snapshot.lastError,
+      )
+    }
   }
 
   private fun requestMissingSenderDetails(messages: List<TdApi.Message>): Unit {
@@ -963,15 +1008,24 @@ class TelegramClientManager(
   }
 
   private fun clearLastMessageErrorLocked(): Unit {
-    val currentSnapshot = snapshot.value
-    if (currentSnapshot.chatMessagesError == null && currentSnapshot.lastError == null) {
-      return
+    updateSnapshot { snapshot ->
+      if (snapshot.chatMessagesError == null && snapshot.lastError == null) {
+        snapshot
+      } else {
+        snapshot.copy(
+          chatMessagesError = null,
+          lastError = snapshot.chatListError,
+        )
+      }
     }
+  }
 
-    snapshotState.value = currentSnapshot.copy(
-      chatMessagesError = null,
-      lastError = currentSnapshot.chatListError,
-    )
+  // TDLib can interleave auth, chat, and message callbacks, so derive each snapshot change
+  // from the latest state instead of from an earlier read that may already be stale.
+  private inline fun updateSnapshot(
+    transform: (TelegramClientSnapshot) -> TelegramClientSnapshot,
+  ): Unit {
+    snapshotState.update(transform)
   }
 
   private fun createPlaceholderChat(chatId: Long): TdApi.Chat {
